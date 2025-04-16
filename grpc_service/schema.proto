@@ -1,8 +1,8 @@
-// python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. acp.proto
+// python -m grpc_tools.protoc -I=. --python_out=. --grpc_python_out=. path/to/schema.proto
 
 syntax = "proto3";
 
-package schema;
+package grpc_service;
 
 // 多模态消息
 message MultiModalMessage {

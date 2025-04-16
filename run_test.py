@@ -15,10 +15,7 @@
 import grpc
 import asyncio
 from concurrent import futures
-import grpc_service.schema_pb2 as schema_pb2
-import grpc_service.schema_pb2_grpc as schema_pb2_grpc
-from grpc_service.agent_service import AgentService
-from grpc_service.gateway_service import GatewayService
+from grpc_service import schema_pb2, schema_pb2_grpc, AgentService, GatewayService
 
 
 async def serve_gateway(port: int = 50051):
