@@ -1,44 +1,16 @@
 import grpc
-import asyncio
-from typing import Dict, Union, AsyncIterable, Optional
-from .schema_pb2_grpc import (GatewayServiceServicer, AgentServiceStub, GatewayServiceStub,
-                              add_GatewayServiceServicer_to_server)
+from typing import Dict, AsyncIterable
+from .utils import ConnectionPool
+from .schema_pb2_grpc import GatewayServiceServicer, AgentServiceStub, add_GatewayServiceServicer_to_server
 from . import schema_pb2
 
-
-class ConnectionPool:
-    """gRPC连接池管理"""
-    def __init__(self):
-        self._channels: Dict[str, grpc.aio.Channel] = {}
-        self._stubs: Dict[str, Union[AgentServiceStub, GatewayServiceStub]] = {}
-
-    async def get_stub(self, address: str) -> Optional[AgentServiceStub]:
-        """获取或创建指定地址的存根"""
-        if address not in self._channels:
-            try:
-                channel = grpc.aio.insecure_channel(address)
-                await channel.channel_ready()
-                self._channels[address] = channel
-                self._stubs[address] = AgentServiceStub(channel)
-            except grpc.RpcError as e:
-                print(f"Connection failed to {address}: {e.code()}")
-                return None
-        return self._stubs[address]
-
-    async def close_all(self):
-        """关闭所有连接"""
-        closing_tasks = []
-        for addr, channel in self._channels.items():
-            closing_tasks.append(channel.close())
-        await asyncio.gather(*closing_tasks, return_exceptions=True)
-        self._channels.clear()
-        self._stubs.clear()
 
 class GatewayService(GatewayServiceServicer):
     def __init__(self, gw_id: str):
         self.gw_id = gw_id
         self.server = None
         self.address = ""
+
         self.agent_registry: Dict[str, schema_pb2.RouteInfo] = {}
         self.connection_pool = ConnectionPool()
 
@@ -49,7 +21,10 @@ class GatewayService(GatewayServiceServicer):
             print(f"<GW>: Routing failed: Receiver {message.receiver_id} not found")
             return
 
-        stub = await self.connection_pool.get_stub(receiver_info.address)
+        if receiver_info.address not in self.connection_pool._stubs:
+            await self.connection_pool.create_stub(receiver_info.address, AgentServiceStub)
+
+        stub = self.connection_pool.get_stub(receiver_info.address)
 
         try:
             # 调用流方法

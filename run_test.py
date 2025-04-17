@@ -12,10 +12,8 @@
 |  Client        Client       |
 +-----------------------------+
 """
-import grpc
 import asyncio
-from concurrent import futures
-from grpc_service import schema_pb2, schema_pb2_grpc, AgentService, GatewayService
+from grpc_service import schema_pb2, AgentService, GatewayService
 
 
 class ExampleAgent(AgentService):
@@ -74,8 +72,12 @@ async def main():
     await asyncio.sleep(5)
 
     # 连接网关
-    asyncio.create_task(agent1.connect_to_gateway(gateway_addr="localhost:50051"))
-    asyncio.create_task(agent2.connect_to_gateway(gateway_addr="localhost:50051"))
+    await agent1.connect_to_gateway(gateway_addr="localhost:50051")
+    await agent2.connect_to_gateway(gateway_addr="localhost:50051")
+
+    # 和网关建立流服务
+    asyncio.create_task(agent1.create_route_message_stream(gateway_addr="localhost:50051"))
+    asyncio.create_task(agent2.create_route_message_stream(gateway_addr="localhost:50051"))
 
     # 确保Agent1, Agent2已连接
     await asyncio.sleep(5)
