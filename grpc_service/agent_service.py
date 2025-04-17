@@ -36,8 +36,9 @@ class AgentService(AgentServiceServicer):
         async for response in stream:
             await self.handle_incoming_message(response)
 
-    async def CallAgent(self, request_iterator: AsyncIterable[schema_pb2.AgentMessage],
-                                context) -> AsyncIterable[schema_pb2.AgentMessage]:
+    async def CallAgent(self,
+                        request_iterator: AsyncIterable[schema_pb2.AgentMessage],
+                        context:grpc.aio.ServicerContext) -> AsyncIterable[schema_pb2.AgentMessage]:
         async for message in request_iterator:
             # 异步处理消息
             processed_msg = await self.process_agent_message(message)

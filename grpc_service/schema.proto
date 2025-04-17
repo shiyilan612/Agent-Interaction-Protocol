@@ -13,64 +13,12 @@ enum Mode {
   NONE = 4;
 }
 
-/* Tool调用 */
-message ToolRequest {
-  string sender_id = 1;
-  string receiver_id = 2;
-  string tool_name = 3;
-  map<string, string> arguments = 4;
-}
-
-message ToolResponse {
-  string sender_id = 1;
-  string receiver_id = 2;
-  bool success = 3;
-  oneof content {
-    string text = 4;
-    bytes image = 5;
-    bytes audio = 6;
-    bytes embedded = 7;
+/* info peer */
+message Peer {
+  oneof info_type {
+    AgentInfo agent_info = 1;
+    ToolInfo tool_info = 2;
   }
-  string error_message = 8;
-}
-
-/* Agent交互 */
-message TaskInfo { // 任务信息
-  string task_id = 1;
-  repeated string parent_task_ids = 2;
-  enum StatusType {
-    CREATED = 0;
-    EXECUTING = 1;
-    WAITING = 2;
-    STOP = 3;
-    FINISH = 4;
-  }
-  StatusType status = 3;
-  repeated string agent_ids = 4;
-  repeated string tool_ids = 5;
-  repeated string resource_ids = 6;
-}
-
-
-message AgentMessage { // Agent消息
-  string sender_id = 1;
-  string receiver_id = 2;
-  enum MessageType {
-    REGULAR = 0;      // 普通消息
-    PROGRESS_QUERY = 1;        // 任务进度问询
-    PROGRESS_RESPONSE = 2;     // 任务进度回应
-    PROGRESS_UPDATE = 3; // 任务进度更新
-    STOP = 4; // 结束交互
-  }
-  MessageType message_type = 3;
-  oneof content {
-    string text = 4;
-    bytes binary = 5;
-  }
-  Mode content_mode = 6;
-  string message_id = 7;
-  string reply_to_message_id = 8; // 回复哪条消息(可选)
-  repeated TaskInfo task = 9; //可选
 }
 
 /* 注册信息 */
@@ -92,7 +40,7 @@ message AgentInfo {  // Agent注册信息
 
 message RegisterAgentResponse { // Agent注册响应信息
   bool success = 1;
-  repeated AgentInfo peers = 2;
+  repeated Peer peers = 2;
 }
 
 message ToolInfo {  // Tool注册信息
@@ -123,6 +71,65 @@ message GetNodesResponse {
   repeated ToolInfo tools = 2;
 }
 
+/* Agent交互 */
+message TaskInfo { // 任务信息
+  string task_id = 1;
+  repeated string parent_task_ids = 2;
+  enum StatusType {
+    CREATED = 0;
+    EXECUTING = 1;
+    WAITING = 2;
+    STOP = 3;
+    FINISH = 4;
+  }
+  StatusType status = 3;
+  repeated string agent_ids = 4;
+  repeated string tool_ids = 5;
+  repeated string resource_ids = 6;
+}
+
+message AgentMessage { // Agent消息
+  string sender_id = 1;
+  string receiver_id = 2;
+  enum MessageType {
+    REGULAR = 0;      // 普通消息
+    PROGRESS_QUERY = 1;        // 任务进度问询
+    PROGRESS_RESPONSE = 2;     // 任务进度回应
+    PROGRESS_UPDATE = 3; // 任务进度更新
+    STOP = 4; // 结束交互
+  }
+  MessageType message_type = 3;
+  oneof content {
+    string text = 4;
+    bytes binary = 5;
+  }
+  Mode content_mode = 6;
+  string message_id = 7;
+  string reply_to_message_id = 8; // 回复哪条消息(可选)
+  repeated TaskInfo task = 9; //可选
+}
+
+/* Tool调用 */
+message ToolRequest {
+  string sender_id = 1;
+  string receiver_id = 2;
+  string tool_name = 3;
+  map<string, string> arguments = 4;
+}
+
+message ToolResponse {
+  string sender_id = 1;
+  string receiver_id = 2;
+  bool success = 3;
+  oneof content {
+    string text = 4;
+    bytes image = 5;
+    bytes audio = 6;
+    bytes embedded = 7;
+  }
+  string error_message = 8;
+}
+
 /*  Agent服务定义 */
 service AgentService {
   // Agent之间双向流式通信接口
@@ -146,12 +153,12 @@ service GatewayService {
   // Tool注册
   rpc RegisterTool(ToolInfo) returns (RegisterToolResponse) {};
 
-  // Agent消息路由接口（双向流）
+  // Agent获取节点清单
+  rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
+
+  // Agent消息路由（双向流）
   rpc RouteAgentCalling(stream AgentMessage) returns (stream AgentMessage) {};
 
-  // Tool调用路由接口
+  // Tool调用路由
   rpc RouteToolCalling(ToolRequest) returns (ToolResponse) {};
-
-  // Agent单次获取节点清单
-  rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
 }

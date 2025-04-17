@@ -1,16 +1,17 @@
 import grpc
 import asyncio
 from typing import Type, Dict, Union, Optional
-from .schema_pb2_grpc import AgentServiceStub, GatewayServiceStub
+from .schema_pb2_grpc import GatewayServiceStub, AgentServiceStub, ToolServiceStub
 
 
 class ConnectionPool:
     """gRPC连接池管理"""
     def __init__(self):
         self._channels: Dict[str, grpc.aio.Channel] = {}
-        self._stubs: Dict[str, Union[AgentServiceStub, GatewayServiceStub]] = {}
+        self._stubs: Dict[str, Union[GatewayServiceStub, AgentServiceStub, ToolServiceStub]] = {}
 
-    async def create_stub(self, address: str, stub_ptr: Union[Type[GatewayServiceStub], Type[AgentServiceStub]]):
+    async def create_stub(self, address: str,
+                          stub_ptr: Union[Type[GatewayServiceStub], Type[AgentServiceStub], Type[ToolServiceStub]]):
         """ create a stub for the input address"""
         try:
             channel = grpc.aio.insecure_channel(address)
@@ -20,7 +21,7 @@ class ConnectionPool:
         except grpc.RpcError as e:
             print(f"Connection failed to {address}: {e.code()}")
 
-    def get_stub(self, address: str) -> Optional[Union[AgentServiceStub, GatewayServiceStub]]:
+    def get_stub(self, address: str) -> Optional[Union[GatewayServiceStub, AgentServiceStub, ToolServiceStub]]:
         """get a stub for a specified address"""
         if address in self._stubs:
             return self._stubs[address]
