@@ -3,8 +3,7 @@
 ## Overview
 
 ### Architecture
-![alt text](asset/arch.png)
-
+<p align="left"><img src="asset/arch.png" width = "350" height = "300"></p>
 
 ## Setup
 ```
