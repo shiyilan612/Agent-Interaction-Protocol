@@ -12,7 +12,6 @@ class AgentService(AgentServiceServicer):
         self.server = None
         self.address = ""
 
-        self.gateway_addr = ""
         self.peers: Dict[str, schema_pb2.RouteInfo] = {}
         self.connection_pool = ConnectionPool()
 

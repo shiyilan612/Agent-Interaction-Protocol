@@ -13,7 +13,7 @@ pip install -r requirements.txt
 python -m grpc_tools.protoc -I=. --python_out=. --grpc_python_out=. grpc_service/schema.proto
 ```
 
-## Simple Test
+## Simple Service Test
 
 ```
 消息流转示意图：
@@ -26,5 +26,5 @@ Agent A                   Gateway                 Agent B
 ```
 
 ```
-python run_test.py
+python run_service_test.py
 ```
