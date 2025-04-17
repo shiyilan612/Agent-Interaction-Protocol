@@ -1,6 +1,6 @@
 import grpc
 import asyncio
-from typing import Dict, AsyncIterable
+from typing import Dict, Union, AsyncIterable
 from .utils import ConnectionPool
 from .schema_pb2_grpc import AgentServiceServicer, GatewayServiceStub, add_AgentServiceServicer_to_server
 from . import schema_pb2
@@ -12,19 +12,19 @@ class AgentService(AgentServiceServicer):
         self.server = None
         self.address = ""
 
-        self.peers: Dict[str, schema_pb2.RouteInfo] = {}
+        self.peers: Dict[str, Union[schema_pb2.AgentInfo, schema_pb2.ToolInfo]] = {}
         self.connection_pool = ConnectionPool()
 
-    async def handle_outgoing_message(self) -> schema_pb2.MultiModalMessage:
-        """子类需要实现RouteMessage消息发送逻辑"""
+    async def handle_outgoing_message(self) -> schema_pb2.AgentMessage:
+        """子类需要实现消息发送逻辑"""
         raise NotImplementedError
 
-    async def handle_incoming_message(self, message: schema_pb2.MultiModalMessage):
-        """子类需要实现RouteMessage消息接收逻辑"""
+    async def handle_incoming_message(self, message: schema_pb2.AgentMessage):
+        """子类需要实现消息接收逻辑"""
         raise NotImplementedError
 
-    async def process_comm_message(self, message: schema_pb2.MultiModalMessage) -> schema_pb2.MultiModalMessage:
-        """子类需要实现StreamCommunicate消息处理逻辑"""
+    async def process_agent_message(self, message: schema_pb2.AgentMessage) -> schema_pb2.AgentMessage:
+        """子类需要实现CallAgent消息处理逻辑"""
         raise NotImplementedError
 
     async def _send_messages(self, stream):
@@ -36,11 +36,11 @@ class AgentService(AgentServiceServicer):
         async for response in stream:
             await self.handle_incoming_message(response)
 
-    async def StreamCommunicate(self, request_iterator: AsyncIterable[schema_pb2.MultiModalMessage],
-                                context) -> AsyncIterable[schema_pb2.MultiModalMessage]:
+    async def CallAgent(self, request_iterator: AsyncIterable[schema_pb2.AgentMessage],
+                                context) -> AsyncIterable[schema_pb2.AgentMessage]:
         async for message in request_iterator:
             # 异步处理消息
-            processed_msg = await self.process_comm_message(message)
+            processed_msg = await self.process_agent_message(message)
             # 立即返回响应
             yield processed_msg
 
@@ -65,7 +65,7 @@ class AgentService(AgentServiceServicer):
 
         try:
             # 注册Agent
-            response = await stub.RegisterAgent(schema_pb2.RouteInfo(
+            response = await stub.RegisterAgent(schema_pb2.AgentInfo(
                 agent_id=self.agent_id,
                 address=self.address))
             self.peers = {peer.agent_id: peer for peer in response.peers}
@@ -78,9 +78,9 @@ class AgentService(AgentServiceServicer):
         except Exception as e:
             print(f"其他异常: {str(e)}")
 
-    async def create_route_message_stream(self, gateway_addr: str):
+    async def create_agent_route_stream(self, gateway_addr: str):
         stub = self.connection_pool.get_stub(gateway_addr)
-        stream = stub.RouteMessage()
+        stream = stub.RouteAgentCalling()
         send_task = asyncio.create_task(self._send_messages(stream))
         recv_task = asyncio.create_task(self._receive_messages(stream))
         try:

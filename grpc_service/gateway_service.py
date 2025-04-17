@@ -1,5 +1,5 @@
 import grpc
-from typing import Dict, AsyncIterable
+from typing import Dict, Union, AsyncIterable
 from .utils import ConnectionPool
 from .schema_pb2_grpc import GatewayServiceServicer, AgentServiceStub, add_GatewayServiceServicer_to_server
 from . import schema_pb2
@@ -11,10 +11,10 @@ class GatewayService(GatewayServiceServicer):
         self.server = None
         self.address = ""
 
-        self.registry: Dict[str, schema_pb2.RouteInfo] = {}
+        self.registry: Dict[str, Union[schema_pb2.AgentInfo, schema_pb2.ToolInfo]] = {}
         self.connection_pool = ConnectionPool()
 
-    async def _forward_message(self, message: schema_pb2.MultiModalMessage) -> AsyncIterable[schema_pb2.MultiModalMessage]:
+    async def _forward_message(self, message: schema_pb2.AgentMessage) -> AsyncIterable[schema_pb2.AgentMessage]:
         """消息转发核心逻辑"""
         receiver_info = self.registry.get(message.receiver_id)
         if not receiver_info:
@@ -25,7 +25,7 @@ class GatewayService(GatewayServiceServicer):
 
         try:
             # 调用流方法
-            stream = stub.StreamCommunicate()
+            stream = stub.CallAgent()
 
             # 发送原始消息
             await stream.write(message)
@@ -39,19 +39,19 @@ class GatewayService(GatewayServiceServicer):
             del self.registry[message.receiver_id] # 移除失效节点
             return
 
-    async def RouteMessage(self, request_iterator: AsyncIterable[schema_pb2.MultiModalMessage],
-                           context) -> AsyncIterable[schema_pb2.MultiModalMessage]:
+    async def RouteMessage(self, request_iterator: AsyncIterable[schema_pb2.AgentMessage],
+                           context) -> AsyncIterable[schema_pb2.AgentMessage]:
         """消息路由主入口"""
         async for message in request_iterator:
             # route 响应流
             async for response in self._forward_message(message):
                 yield response
 
-    async def RegisterAgent(self, request: schema_pb2.RouteInfo, context) -> schema_pb2.RegisterResponse:
+    async def RegisterAgent(self, request: schema_pb2.AgentInfo, context) -> schema_pb2.RegisterAgentResponse:
         self.registry[request.agent_id] = request
         await self.connection_pool.create_stub(request.address, AgentServiceStub)
         print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
-        return schema_pb2.RegisterResponse(
+        return schema_pb2.RegisterAgentResponse(
             success=True,
             peers=list(self.registry.values())
         )
