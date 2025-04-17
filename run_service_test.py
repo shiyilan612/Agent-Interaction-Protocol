@@ -21,20 +21,20 @@ class ExampleAgent(AgentService):
         super().__init__(*args, **kwargs)
         self.message_queue = asyncio.Queue()
 
-    async def handle_outgoing_message(self) -> schema_pb2.MultiModalMessage:
+    async def handle_outgoing_message(self) -> schema_pb2.AgentMessage:
         """实现RouteMessage消息发送逻辑"""
         message = await self.message_queue.get()
         return  message
 
-    async def handle_incoming_message(self, message: schema_pb2.MultiModalMessage):
+    async def handle_incoming_message(self, message: schema_pb2.AgentMessage):
         """实现RouteMessage消息接收逻辑"""
         print(f"<{self.agent_id}>: {message.text}")
 
-    async def process_comm_message(self, message: schema_pb2.MultiModalMessage):
+    async def process_agent_message(self, message: schema_pb2.AgentMessage) -> schema_pb2.AgentMessage:
         """实现StreamCommunicate消息处理逻辑"""
         print(f"<{self.agent_id}>: receive \"{message.text}\" from {message.sender_id}")
 
-        processed_message = schema_pb2.MultiModalMessage(
+        processed_message = schema_pb2.AgentMessage(
             sender_id=self.agent_id,
             receiver_id=message.sender_id,
             text=f"Reply from {self.agent_id}: \"{message.text}\""
@@ -45,7 +45,7 @@ class ExampleAgent(AgentService):
     async def send_message(self, receiver_id: str, text: str):
         print(f"<{self.agent_id}>: send \"{text}\" to {receiver_id}")
 
-        message = schema_pb2.MultiModalMessage(
+        message = schema_pb2.AgentMessage(
             sender_id=self.agent_id,
             receiver_id=receiver_id,
             text=text
@@ -71,8 +71,8 @@ async def main():
     await agent2.connect_to_gateway(gateway_addr="localhost:50051")
 
     # 和网关建立流服务
-    asyncio.create_task(agent1.create_route_message_stream(gateway_addr="localhost:50051"))
-    asyncio.create_task(agent2.create_route_message_stream(gateway_addr="localhost:50051"))
+    asyncio.create_task(agent1.create_agent_route_stream(gateway_addr="localhost:50051"))
+    asyncio.create_task(agent2.create_agent_route_stream(gateway_addr="localhost:50051"))
 
     # 确保Agent1, Agent2已连接
     await asyncio.sleep(5)

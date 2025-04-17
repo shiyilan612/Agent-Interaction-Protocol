@@ -4,42 +4,161 @@ syntax = "proto3";
 
 package grpc_service;
 
-// 多模态消息
-message MultiModalMessage {
-  string sender_id = 1;
-  string receiver_id = 2;
-  oneof content {
-    string text = 3;
-    bytes image = 4;
-    bytes audio = 5;
+/* message modality */
+enum Mode {
+  TEXT = 0;
+  IMAGE = 1;
+  AUDIO = 2;
+  VIDEO = 3;
+  NONE = 4;
+}
+
+/* info peer */
+message Peer {
+  oneof info_type {
+    AgentInfo agent_info = 1;
+    ToolInfo tool_info = 2;
   }
 }
 
-// 路由注册消息
-message RegisterResponse {
-  bool success = 1;
-  repeated RouteInfo peers = 2;
-}
-
-// 网关路由消息
-message RouteInfo {
+/* 注册信息 */
+message AgentInfo {  // Agent注册信息
   string agent_id = 1;
   string address = 2;
+  string name = 3; //可定义角色
+  string domain = 4;      //可对Agent分组
+  Mode input_mode = 5;
+  Mode output_mode = 6;
+  string description = 7;
+  message AgentSkill {
+    string skill_id = 1;
+    string capability = 2;
+  }
+  repeated AgentSkill skills= 8;
+  string version = 9;
 }
 
-// Agent服务定义
+message RegisterAgentResponse { // Agent注册响应信息
+  bool success = 1;
+  repeated Peer peers = 2;
+}
+
+message ToolInfo {  // Tool注册信息
+  string tool_id = 1;
+  string address = 2;
+  string name = 3;
+  string domain = 4;  //可对Tool分组
+  Mode input_mode = 5;
+  Mode output_mode = 6;
+  string description = 7;
+  map<string, string> arguments = 8;
+  string version = 9;
+}
+
+message RegisterToolResponse { // Tool注册响应信息
+  bool success = 1;
+}
+
+
+/* 节点清单获取 */
+message GetNodesRequest {
+  string agent_id = 1;  // 请求Agent的ID
+  string domain = 2;
+}
+
+message GetNodesResponse {
+  repeated AgentInfo agents = 1;
+  repeated ToolInfo tools = 2;
+}
+
+/* Agent交互 */
+message TaskInfo { // 任务信息
+  string task_id = 1;
+  repeated string parent_task_ids = 2;
+  enum StatusType {
+    CREATED = 0;
+    EXECUTING = 1;
+    WAITING = 2;
+    STOP = 3;
+    FINISH = 4;
+  }
+  StatusType status = 3;
+  repeated string agent_ids = 4;
+  repeated string tool_ids = 5;
+  repeated string resource_ids = 6;
+}
+
+message AgentMessage { // Agent消息
+  string sender_id = 1;
+  string receiver_id = 2;
+  enum MessageType {
+    REGULAR = 0;      // 普通消息
+    PROGRESS_QUERY = 1;        // 任务进度问询
+    PROGRESS_RESPONSE = 2;     // 任务进度回应
+    PROGRESS_UPDATE = 3; // 任务进度更新
+    STOP = 4; // 结束交互
+  }
+  MessageType message_type = 3;
+  oneof content {
+    string text = 4;
+    bytes binary = 5;
+  }
+  Mode content_mode = 6;
+  string message_id = 7;
+  string reply_to_message_id = 8; // 回复哪条消息(可选)
+  repeated TaskInfo task = 9; //可选
+}
+
+/* Tool调用 */
+message ToolRequest {
+  string sender_id = 1;
+  string receiver_id = 2;
+  string tool_name = 3;
+  map<string, string> arguments = 4;
+}
+
+message ToolResponse {
+  string sender_id = 1;
+  string receiver_id = 2;
+  bool success = 3;
+  oneof content {
+    string text = 4;
+    bytes image = 5;
+    bytes audio = 6;
+    bytes embedded = 7;
+  }
+  string error_message = 8;
+}
+
+/*  Agent服务定义 */
 service AgentService {
-  // 双向流式通信接口
-  rpc StreamCommunicate(stream MultiModalMessage)
-      returns (stream MultiModalMessage) {}
+  // Agent之间双向流式通信接口
+  rpc CallAgent(stream AgentMessage) returns (stream AgentMessage) {};
 }
 
-// 网关服务定义
-service GatewayService {
-  // Agent注册接口
-  rpc RegisterAgent(RouteInfo) returns (RegisterResponse) {}
 
-  // 消息路由接口（双向流）
-  rpc RouteMessage(stream MultiModalMessage)
-      returns (stream MultiModalMessage) {}
+/*  Tool服务定义 */
+service ToolService {
+  // Tool调用
+  rpc CallTool(ToolRequest) returns (ToolResponse) {};
+}
+
+
+/*  网关服务定义 */
+service GatewayService {
+
+  // Agent注册,返回节点清单
+  rpc RegisterAgent(AgentInfo) returns (RegisterAgentResponse) {};
+
+  // Tool注册
+  rpc RegisterTool(ToolInfo) returns (RegisterToolResponse) {};
+
+  // Agent获取节点清单
+  rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
+
+  // Agent消息路由（双向流）
+  rpc RouteAgentCalling(stream AgentMessage) returns (stream AgentMessage) {};
+
+  // Tool调用路由
+  rpc RouteToolCalling(ToolRequest) returns (ToolResponse) {};
 }
