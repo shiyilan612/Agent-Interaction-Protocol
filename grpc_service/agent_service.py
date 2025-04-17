@@ -69,8 +69,21 @@ class AgentService(AgentServiceServicer):
             response = await stub.RegisterAgent(schema_pb2.AgentInfo(
                 agent_id=self.agent_id,
                 address=self.address))
-            self.peers = {peer.agent_id: peer for peer in response.peers}
+
+            # load peers
+            for peer in response.peers:
+                set_field = peer.WhichOneof("info_type")
+                if set_field == "agent_info":
+                    agent_info = peer.agent_info
+                    self.peers.update({agent_info.agent_id: agent_info})
+                elif set_field == "tool_info":
+                    tool_info = peer.tool_info
+                    self.peers.update({tool_info.tool_id: tool_info})
+                else:
+                    raise ValueError
+
             print(f"<{self.agent_id}>: RegisterResponse from GW ({gateway_addr})")
+
         except grpc.aio.AioRpcError as e:
             print(f"RPC Error: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:

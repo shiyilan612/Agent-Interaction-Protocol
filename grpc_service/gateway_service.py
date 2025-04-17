@@ -78,12 +78,21 @@ class GatewayService(GatewayServiceServicer):
     async def RegisterAgent(self,
                             request: schema_pb2.AgentInfo,
                             context: grpc.aio.ServicerContext) -> schema_pb2.RegisterAgentResponse:
+
         self.registry[request.agent_id] = request
         await self.connection_pool.create_stub(request.address, AgentServiceStub)
         print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
+
+        # collect peers
+        peers = list()
+        for info in list(self.registry.values()):
+            peer = schema_pb2.Peer()
+            peer.agent_info.CopyFrom(info)
+            peers.append(peer)
+
         return schema_pb2.RegisterAgentResponse(
             success=True,
-            peers=list(self.registry.values())
+            peers=peers
         )
 
     async def RegisterTool(self,
