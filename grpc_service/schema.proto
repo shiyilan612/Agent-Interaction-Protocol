@@ -92,8 +92,7 @@ message AgentInfo {  // Agent注册信息
 
 message RegisterAgentResponse { // Agent注册响应信息
   bool success = 1;
-  repeated AgentInfo agent_peers = 2;
-  repeated ToolInfo tool_peers = 3;
+  repeated AgentInfo peers = 2;
 }
 
 message ToolInfo {  // Tool注册信息

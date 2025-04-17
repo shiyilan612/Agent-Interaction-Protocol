@@ -39,7 +39,7 @@ class GatewayService(GatewayServiceServicer):
             del self.registry[message.receiver_id] # 移除失效节点
             return
 
-    async def RouteMessage(self, request_iterator: AsyncIterable[schema_pb2.AgentMessage],
+    async def RouteAgentCalling(self, request_iterator: AsyncIterable[schema_pb2.AgentMessage],
                            context) -> AsyncIterable[schema_pb2.AgentMessage]:
         """消息路由主入口"""
         async for message in request_iterator:
