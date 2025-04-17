@@ -11,18 +11,15 @@ class GatewayService(GatewayServiceServicer):
         self.server = None
         self.address = ""
 
-        self.agent_registry: Dict[str, schema_pb2.RouteInfo] = {}
+        self.registry: Dict[str, schema_pb2.RouteInfo] = {}
         self.connection_pool = ConnectionPool()
 
     async def _forward_message(self, message: schema_pb2.MultiModalMessage) -> AsyncIterable[schema_pb2.MultiModalMessage]:
         """消息转发核心逻辑"""
-        receiver_info = self.agent_registry.get(message.receiver_id)
+        receiver_info = self.registry.get(message.receiver_id)
         if not receiver_info:
             print(f"<GW>: Routing failed: Receiver {message.receiver_id} not found")
             return
-
-        if receiver_info.address not in self.connection_pool._stubs:
-            await self.connection_pool.create_stub(receiver_info.address, AgentServiceStub)
 
         stub = self.connection_pool.get_stub(receiver_info.address)
 
@@ -39,7 +36,7 @@ class GatewayService(GatewayServiceServicer):
 
         except grpc.RpcError as e:
             print(f"<GW>: Forwarding to {receiver_info.address} failed: {e.code()}")
-            del self.agent_registry[message.receiver_id] # 移除失效节点
+            del self.registry[message.receiver_id] # 移除失效节点
             return
 
     async def RouteMessage(self, request_iterator: AsyncIterable[schema_pb2.MultiModalMessage],
@@ -51,11 +48,12 @@ class GatewayService(GatewayServiceServicer):
                 yield response
 
     async def RegisterAgent(self, request: schema_pb2.RouteInfo, context) -> schema_pb2.RegisterResponse:
-        self.agent_registry[request.agent_id] = request
+        self.registry[request.agent_id] = request
+        await self.connection_pool.create_stub(request.address, AgentServiceStub)
         print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
         return schema_pb2.RegisterResponse(
             success=True,
-            peers=list(self.agent_registry.values())
+            peers=list(self.registry.values())
         )
 
     async def start(self, port: int):

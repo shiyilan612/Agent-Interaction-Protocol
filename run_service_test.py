@@ -54,21 +54,16 @@ class ExampleAgent(AgentService):
 
 
 async def main():
+    # 启动网关, Agent1, Agent2
     gw_local = GatewayService(gw_id="gw_local")
     agent1 = ExampleAgent(agent_id="agent1")
     agent2 = ExampleAgent(agent_id="agent2")
 
-    # 启动网关
     asyncio.create_task(gw_local.start(port=50051))
-
-    # 确保网关服务已启动
-    await asyncio.sleep(5)
-
-    # 启动Agent1, Agent2
     asyncio.create_task(agent1.start(port=50052))
     asyncio.create_task(agent2.start(port=50053))
 
-    # 确保Agent1, Agent2服务已启动
+    # 确保网关, Agent1, Agent2服务已启动
     await asyncio.sleep(5)
 
     # 连接网关
