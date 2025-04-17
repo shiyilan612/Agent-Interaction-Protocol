@@ -1,24 +1,25 @@
 import grpc
 import asyncio
-from typing import Dict, AsyncIterable, Optional
+from typing import Dict, Union, AsyncIterable, Optional
+from .schema_pb2_grpc import (GatewayServiceServicer, AgentServiceStub, GatewayServiceStub,
+                              add_GatewayServiceServicer_to_server)
 from . import schema_pb2
-from . import schema_pb2_grpc
 
 
 class ConnectionPool:
     """gRPC连接池管理"""
     def __init__(self):
         self._channels: Dict[str, grpc.aio.Channel] = {}
-        self._stubs: Dict[str, schema_pb2_grpc.AgentServiceStub] = {}
+        self._stubs: Dict[str, Union[AgentServiceStub, GatewayServiceStub]] = {}
 
-    async def get_stub(self, address: str) -> Optional[schema_pb2_grpc.AgentServiceStub]:
+    async def get_stub(self, address: str) -> Optional[AgentServiceStub]:
         """获取或创建指定地址的存根"""
         if address not in self._channels:
             try:
                 channel = grpc.aio.insecure_channel(address)
                 await channel.channel_ready()
                 self._channels[address] = channel
-                self._stubs[address] = schema_pb2_grpc.AgentServiceStub(channel)
+                self._stubs[address] = AgentServiceStub(channel)
             except grpc.RpcError as e:
                 print(f"Connection failed to {address}: {e.code()}")
                 return None
@@ -33,8 +34,11 @@ class ConnectionPool:
         self._channels.clear()
         self._stubs.clear()
 
-class GatewayService(schema_pb2_grpc.GatewayServiceServicer):
-    def __init__(self):
+class GatewayService(GatewayServiceServicer):
+    def __init__(self, gw_id: str):
+        self.gw_id = gw_id
+        self.server = None
+        self.address = ""
         self.agent_registry: Dict[str, schema_pb2.RouteInfo] = {}
         self.connection_pool = ConnectionPool()
 
@@ -78,3 +82,18 @@ class GatewayService(schema_pb2_grpc.GatewayServiceServicer):
             success=True,
             peers=list(self.agent_registry.values())
         )
+
+    async def start(self, port: int):
+        self.server = grpc.aio.server()
+        add_GatewayServiceServicer_to_server(self, self.server)
+        self.address = f'localhost:{port}'
+        self.server.add_insecure_port(self.address)
+        await self.server.start()
+        print(f"<{self.gw_id}>: Gateway {self.gw_id} started on {self.address}")
+
+        # 等待结束
+        try:
+            await self.server.wait_for_termination()
+        finally:
+            # 确保正确关闭服务
+            await self.server.stop(1)  # 1秒超时

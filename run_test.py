@@ -18,21 +18,6 @@ from concurrent import futures
 from grpc_service import schema_pb2, schema_pb2_grpc, AgentService, GatewayService
 
 
-async def serve_gateway(port: int = 50051):
-    # 注册业务服务
-    server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
-    schema_pb2_grpc.add_GatewayServiceServicer_to_server(GatewayService(), server)
-
-    # 启动服务
-    listen_addr = f"[::]:{port}"
-    server.add_insecure_port(listen_addr)
-    await server.start()
-    print(f"<GW>: Gateway serving on port {port}")
-    try:
-        await server.wait_for_termination()
-    finally:
-        await server.stop(1)
-
 class ExampleAgent(AgentService):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -69,21 +54,30 @@ class ExampleAgent(AgentService):
         )
         await self.message_queue.put(message)
 
+
 async def main():
+    gw_local = GatewayService(gw_id="gw_local")
     agent1 = ExampleAgent(agent_id="agent1")
     agent2 = ExampleAgent(agent_id="agent2")
 
     # 启动网关
-    asyncio.create_task(serve_gateway(port=50051))
+    asyncio.create_task(gw_local.start(port=50051))
 
     # 确保网关服务已启动
     await asyncio.sleep(5)
 
     # 启动Agent1, Agent2
-    asyncio.create_task(agent1.start(port=50052, gateway_addr="localhost:50051"))
-    asyncio.create_task(agent2.start(port=50053, gateway_addr="localhost:50051"))
+    asyncio.create_task(agent1.start(port=50052))
+    asyncio.create_task(agent2.start(port=50053))
 
     # 确保Agent1, Agent2服务已启动
+    await asyncio.sleep(5)
+
+    # 连接网关
+    asyncio.create_task(agent1.connect_to_gateway(gateway_addr="localhost:50051"))
+    asyncio.create_task(agent2.connect_to_gateway(gateway_addr="localhost:50051"))
+
+    # 确保Agent1, Agent2已连接
     await asyncio.sleep(5)
 
     # 模拟消息发送

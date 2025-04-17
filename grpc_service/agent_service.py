@@ -1,11 +1,41 @@
 import grpc
 import asyncio
-from typing import AsyncIterable, Dict
+from typing import Dict, Union, AsyncIterable, Optional
+from .schema_pb2_grpc import (AgentServiceServicer, AgentServiceStub, GatewayServiceStub,
+                              add_AgentServiceServicer_to_server)
 from . import schema_pb2
-from . import schema_pb2_grpc
 
 
-class AgentService(schema_pb2_grpc.AgentServiceServicer):
+class ConnectionPool:
+    """gRPC连接池管理"""
+    def __init__(self):
+        self._channels: Dict[str, grpc.aio.Channel] = {}
+        self._stubs: Dict[str, Union[AgentServiceStub, GatewayServiceStub]] = {}
+
+    async def get_stub(self, address: str) -> Optional[Union[AgentServiceStub, GatewayServiceStub]]:
+        """获取或创建指定地址的存根"""
+        if address not in self._channels:
+            try:
+                channel = grpc.aio.insecure_channel(address)
+                await channel.channel_ready()
+                self._channels[address] = channel
+                self._stubs[address] = AgentServiceStub(channel)
+            except grpc.RpcError as e:
+                print(f"Connection failed to {address}: {e.code()}")
+                return None
+        return self._stubs[address]
+
+    async def close_all(self):
+        """关闭所有连接"""
+        closing_tasks = []
+        for addr, channel in self._channels.items():
+            closing_tasks.append(channel.close())
+        await asyncio.gather(*closing_tasks, return_exceptions=True)
+        self._channels.clear()
+        self._stubs.clear()
+
+
+class AgentService(AgentServiceServicer):
     def __init__(self, agent_id: str):
         self.agent_id = agent_id
         self.server = None
@@ -41,7 +71,7 @@ class AgentService(schema_pb2_grpc.AgentServiceServicer):
             await asyncio.gather(send_task, recv_task)
         except grpc.aio.AioRpcError as e:
             print(f"RPC Error: {e.details()}")
-            if e.code() == grpc_service.StatusCode.UNKNOWN:
+            if e.code() == grpc.StatusCode.UNKNOWN:
                 # 处理 BrokenPipeError
                 pass
         except Exception as e:
@@ -58,7 +88,7 @@ class AgentService(schema_pb2_grpc.AgentServiceServicer):
     async def connect_to_gateway(self, gateway_addr: str):
         self.gateway_addr = gateway_addr
         async with grpc.aio.insecure_channel(self.gateway_addr) as channel:
-            stub = schema_pb2_grpc.GatewayServiceStub(channel)
+            stub = GatewayServiceStub(channel)
 
             try:
                 # 注册Agent
@@ -69,29 +99,26 @@ class AgentService(schema_pb2_grpc.AgentServiceServicer):
                 print(f"<{self.agent_id}>: RegisterResponse from GW ({gateway_addr})")
             except grpc.aio.AioRpcError as e:
                 print(f"RPC Error: {e.details()}")
-                if e.code() == grpc_service.StatusCode.UNKNOWN:
+                if e.code() == grpc.StatusCode.UNKNOWN:
                     # 处理 BrokenPipeError
                     pass
             except Exception as e:
                 print(f"其他异常: {str(e)}")
 
-            # 建立RouteMessage双向流
             stream = stub.RouteMessage()
             await self._handle_route_message_stream(stream)
 
-    async def start(self, port: int, gateway_addr: str):
+    async def start(self, port: int):
         self.server = grpc.aio.server()
-        schema_pb2_grpc.add_AgentServiceServicer_to_server(self, self.server)
+        add_AgentServiceServicer_to_server(self, self.server)
         self.address = f'localhost:{port}'
         self.server.add_insecure_port(self.address)
         await self.server.start()
         print(f"<{self.agent_id}>: Agent {self.agent_id} started on {self.address}")
 
-        asyncio.create_task(self.connect_to_gateway(gateway_addr))
-
         # 等待结束
         try:
             await self.server.wait_for_termination()
         finally:
-            # 确保正确关闭服务器
+            # 确保正确关闭服务
             await self.server.stop(1)  # 1秒超时
