@@ -13,7 +13,7 @@ enum Mode {
   NONE = 4;
 }
 
-/* info peer */
+/* peer info */
 message Peer {
   oneof info_type {
     AgentInfo agent_info = 1;
@@ -67,8 +67,7 @@ message GetNodesRequest {
 }
 
 message GetNodesResponse {
-  repeated AgentInfo agents = 1;
-  repeated ToolInfo tools = 2;
+  repeated Peer peers = 1;
 }
 
 /* Agent交互 */
@@ -146,7 +145,12 @@ service ToolService {
 
 /*  网关服务定义 */
 service GatewayService {
+  // Agent消息路由（双向流）
+  rpc RouteAgentCalling(stream AgentMessage) returns (stream AgentMessage) {};
 
+  // Tool调用路由
+  rpc RouteToolCalling(ToolRequest) returns (ToolResponse) {};
+  
   // Agent注册,返回节点清单
   rpc RegisterAgent(AgentInfo) returns (RegisterAgentResponse) {};
 
@@ -156,9 +160,4 @@ service GatewayService {
   // Agent获取节点清单
   rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
 
-  // Agent消息路由（双向流）
-  rpc RouteAgentCalling(stream AgentMessage) returns (stream AgentMessage) {};
-
-  // Tool调用路由
-  rpc RouteToolCalling(ToolRequest) returns (ToolResponse) {};
 }
