@@ -60,6 +60,15 @@ class GatewayService(GatewayServiceServicer):
             del self.registry[request.receiver_id] # 移除失效节点
             return
 
+    async def _collect_node_peers(self) -> list:
+        peers = list()
+        for info in list(self.registry.values()):
+            peer = schema_pb2.Peer()
+            peer.agent_info.CopyFrom(info)
+            peers.append(peer)
+
+        return peers
+
     async def RouteAgentCalling(self,
                                 request_iterator: AsyncIterable[schema_pb2.AgentMessage],
                                 context: grpc.aio.ServicerContext) -> AsyncIterable[schema_pb2.AgentMessage]:
@@ -83,12 +92,7 @@ class GatewayService(GatewayServiceServicer):
         await self.connection_pool.create_stub(request.address, AgentServiceStub)
         print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
 
-        # collect peers
-        peers = list()
-        for info in list(self.registry.values()):
-            peer = schema_pb2.Peer()
-            peer.agent_info.CopyFrom(info)
-            peers.append(peer)
+        peers = await self._collect_node_peers()  # collect peers
 
         return schema_pb2.RegisterAgentResponse(
             success=True,
@@ -103,6 +107,17 @@ class GatewayService(GatewayServiceServicer):
         print(f"<GW>: Register {request.tool_id} (addr in {request.address})")
         return schema_pb2.RegisterToolResponse(
             success=True
+        )
+
+    async def GetNodes(self,
+                       request: schema_pb2.GetNodesRequest,
+                       context: grpc.aio.ServicerContext) -> schema_pb2.GetNodesResponse:
+
+        print(f"<GW>: Agent {request.agent_id} request nodes info")
+        peers = await self._collect_node_peers()  # collect peers
+
+        return schema_pb2.GetNodesResponse(
+            peers=peers
         )
 
     async def start(self, port: int):

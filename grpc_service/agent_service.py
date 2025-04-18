@@ -36,6 +36,18 @@ class AgentService(AgentServiceServicer):
         async for response in stream:
             await self.handle_incoming_message(response)
 
+    async def _update_peers(self, new_peers):
+        for peer in new_peers:
+            set_field = peer.WhichOneof("info_type")
+            if set_field == "agent_info":
+                agent_info = peer.agent_info
+                self.peers.update({agent_info.agent_id: agent_info})
+            elif set_field == "tool_info":
+                tool_info = peer.tool_info
+                self.peers.update({tool_info.tool_id: tool_info})
+            else:
+                raise ValueError
+
     async def CallAgent(self,
                         request_iterator: AsyncIterable[schema_pb2.AgentMessage],
                         context:grpc.aio.ServicerContext) -> AsyncIterable[schema_pb2.AgentMessage]:
@@ -65,22 +77,11 @@ class AgentService(AgentServiceServicer):
         stub = self.connection_pool.get_stub(gateway_addr)
 
         try:
-            # 注册Agent
             response = await stub.RegisterAgent(schema_pb2.AgentInfo(
                 agent_id=self.agent_id,
-                address=self.address))
+                address=self.address))   # register agent
 
-            # load peers
-            for peer in response.peers:
-                set_field = peer.WhichOneof("info_type")
-                if set_field == "agent_info":
-                    agent_info = peer.agent_info
-                    self.peers.update({agent_info.agent_id: agent_info})
-                elif set_field == "tool_info":
-                    tool_info = peer.tool_info
-                    self.peers.update({tool_info.tool_id: tool_info})
-                else:
-                    raise ValueError
+            await self._update_peers(response.peers) # update peers
 
             print(f"<{self.agent_id}>: RegisterResponse from GW ({gateway_addr})")
 
@@ -99,6 +100,26 @@ class AgentService(AgentServiceServicer):
         recv_task = asyncio.create_task(self._receive_messages(stream))
         try:
             await asyncio.gather(send_task, recv_task)
+        except grpc.aio.AioRpcError as e:
+            print(f"RPC Error: {e.details()}")
+            if e.code() == grpc.StatusCode.UNKNOWN:
+                # 处理 BrokenPipeError
+                pass
+        except Exception as e:
+            print(f"其他异常: {str(e)}")
+
+    async def get_gateway_node(self, gateway_addr: str):
+        stub = self.connection_pool.get_stub(gateway_addr)
+
+        try:
+            # 注册Agent
+            response = await stub.GetNodes(schema_pb2.GetNodesRequest(agent_id=self.agent_id))
+
+            # load peers
+            await self._update_peers(response.peers)  # update peers
+
+            print(f"<{self.agent_id}>: Update peers from GW ({gateway_addr})")
+
         except grpc.aio.AioRpcError as e:
             print(f"RPC Error: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
