@@ -56,7 +56,10 @@ class ToolService(ToolServiceServicer):
         
         #creat tool info
         self.tool_info = self._create_tool_info()
-        
+
+        # init gateway address
+        self._gateway_address = None
+
         # gRPC server for this tool service
         self._server = None
 

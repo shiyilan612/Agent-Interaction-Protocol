@@ -12,7 +12,7 @@
 |  Client        Client       |
 +-----------------------------+
 """
-from session.tool_session import Tool
+from run_tool_test import Tool
 import asyncio
 from grpc_service import schema_pb2, AgentService, GatewayService
 from typing import Dict
@@ -67,17 +67,17 @@ class ExampleAgent(AgentService):
 
 
 async def main():
-    gw_local = GatewayService(gw_id="gw_local")
-    agent1 = ExampleAgent(agent_id="agent1")
+    gw_local = GatewayService(address="localhost:50051", gw_id="gw_local")
+    agent1 = ExampleAgent(address="localhost:50052", agent_id="agent1")
 
-    asyncio.create_task(gw_local.start(port=50051))
-    asyncio.create_task(agent1.start(port=50052))
+    asyncio.create_task(gw_local.start())
+    asyncio.create_task(agent1.start())
 
     await asyncio.sleep(5)
 
     # 连接网关
-    await agent1.connect_to_gateway(gateway_addr="localhost:50051")
-    
+    await agent1.connect_to_gateway(gateway_address="localhost:50051")
+
     # Example: Creating a function-based tool
     async def calculate_sum(a:int, b:int) -> int:
         """Adds two numbers and returns the sum."""
@@ -86,11 +86,10 @@ async def main():
     sum_tool = Tool.creat_function_tool(
         function=calculate_sum,
         address="localhost:50054",
-        gateway_address="localhost:50051",
         name="SumCalculator",
         description="A simple tool that adds two numbers"
     )
-    
+    await sum_tool.connect_to_gateway(gateway_address="localhost:50051")
     tool_task = asyncio.create_task(sum_tool.run())
     await asyncio.sleep(5)
 

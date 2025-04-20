@@ -62,6 +62,9 @@ class AgentService(AgentServiceServicer):
         # init peers dict
         self._peers: Dict[str, Union[AgentInfo, ToolInfo]] = {}
 
+        # init gateway address
+        self._gateway_address = None
+
         # gRPC server for this tool service
         self._server = None
 
