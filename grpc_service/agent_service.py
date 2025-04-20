@@ -1,10 +1,22 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 19 20:00:00 2025
+
+@author: clleng & haixin
+"""
+
+# -*- coding: utf-8 -*-
+
 import grpc
+import uuid
 import asyncio
 from typing import Dict, Union, AsyncIterable, List
 from .utils import ConnectionPool
-from .schema_pb2_grpc import AgentServiceServicer, GatewayServiceStub, add_AgentServiceServicer_to_server
-from . import schema_pb2
-import uuid
+
+# Import the generated proto modules
+from .schema_pb2 import AgentInfo, ToolInfo, AgentMessage, ToolRequest, ToolResponse, GetNodesRequest, Mode
+from .schema_pb2_grpc import AgentServiceServicer, add_AgentServiceServicer_to_server
+from .schema_pb2_grpc import GatewayServiceStub
 
 
 class AgentService(AgentServiceServicer):
@@ -16,10 +28,10 @@ class AgentService(AgentServiceServicer):
                 gateway_address: str = None,
                 name: str = None,
                 domain: str = 'default',
-                input_mode: schema_pb2.Mode = schema_pb2.Mode.TEXT,
-                output_mode: schema_pb2.Mode = schema_pb2.Mode.TEXT,
+                input_mode: Mode = Mode.TEXT,
+                output_mode: Mode = Mode.TEXT,
                 description: str = '',
-                skills: List[schema_pb2.AgentInfo.AgentSkill] = [],
+                skills: List[AgentInfo.AgentSkill] = [],
                 version: str = '1.0.0' ):
         """
         Initialize a new Agent instance.
@@ -36,7 +48,7 @@ class AgentService(AgentServiceServicer):
             skills (List[schema_pb2.AgentInfo.AgentSkill]): List of skills for the agent.
             version (str): Version of the agent.
         """
-        self.agent_id = agent_id if agent_id else str(uuid.uuid4())
+        self.agent_id = agent_id if agent_id else f"agent_{str(uuid.uuid4())}"
         self._server = None
         self.address = address
         self.gateway_address = gateway_address
@@ -49,18 +61,18 @@ class AgentService(AgentServiceServicer):
         self.version = version  
 
         self.agent_info = self._create_agent_info()
-        self.peers: Dict[str, Union[schema_pb2.AgentInfo, schema_pb2.ToolInfo]] = {}
+        self.peers: Dict[str, Union[AgentInfo, ToolInfo]] = {}
         self._connection_pool = ConnectionPool()
 
-    async def handle_outgoing_message(self) -> schema_pb2.AgentMessage:
+    async def handle_outgoing_message(self) -> AgentMessage:
         """子类需要实现消息发送逻辑"""
         raise NotImplementedError
 
-    async def handle_incoming_message(self, message: schema_pb2.AgentMessage):
+    async def handle_incoming_message(self, message: AgentMessage):
         """子类需要实现消息接收逻辑"""
         raise NotImplementedError
 
-    async def process_agent_message(self, message: schema_pb2.AgentMessage) -> schema_pb2.AgentMessage:
+    async def process_agent_message(self, message: AgentMessage) -> AgentMessage:
         """子类需要实现CallAgent消息处理逻辑"""
         raise NotImplementedError
 
@@ -103,11 +115,11 @@ class AgentService(AgentServiceServicer):
             else:
                 raise ValueError
     
-    def _create_agent_info(self) -> schema_pb2.AgentInfo:
+    def _create_agent_info(self) -> AgentInfo:
         """
         Create a AgentInfo message for registration with the gateway.
         """
-        agent_info = schema_pb2.AgentInfo(
+        agent_info = AgentInfo(
             agent_id=self.agent_id,
             address=self.address,
             name=self.name,
@@ -122,8 +134,8 @@ class AgentService(AgentServiceServicer):
         return agent_info
 
     async def CallAgent(self,
-                        request_iterator: AsyncIterable[schema_pb2.AgentMessage],
-                        context:grpc.aio.ServicerContext) -> AsyncIterable[schema_pb2.AgentMessage]:
+                        request_iterator: AsyncIterable[AgentMessage],
+                        context:grpc.aio.ServicerContext) -> AsyncIterable[AgentMessage]:
         """
         Handle incoming agent messages (implements the gRPC service method).
 
@@ -218,7 +230,7 @@ class AgentService(AgentServiceServicer):
         except Exception as e:
             print(f"Other exception: {str(e)}")
 
-    async def Call_tool_by_route(self, tool_request: schema_pb2.ToolRequest) -> schema_pb2.ToolResponse:
+    async def create_tool_route_(self, tool_request: ToolRequest) -> ToolResponse:
         """
         Call a tool through the gateway.
 
@@ -257,7 +269,7 @@ class AgentService(AgentServiceServicer):
 
         try:
             # query nodes
-            response = await stub.GetNodes(schema_pb2.GetNodesRequest(agent_id=self.agent_id, domain=domain))
+            response = await stub.GetNodes(GetNodesRequest(agent_id=self.agent_id, domain=domain))
 
             # load peers
             await self._update_peers(response.peers)  # update peers

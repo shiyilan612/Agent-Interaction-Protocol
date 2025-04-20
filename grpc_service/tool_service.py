@@ -6,22 +6,17 @@ Created on Fri Apr 18 10:01:08 2025
 """
 
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Apr 17 22:11:16 2025
 
-@author: xmkang
-"""
-
-# tool_service.py
 import grpc
-import asyncio
 import uuid
+from typing import Dict
+from .utils import ConnectionPool
+
 # Import the generated proto modules
 from .schema_pb2 import ToolInfo, ToolRequest, ToolResponse, Mode
 from .schema_pb2_grpc import ToolServiceServicer, add_ToolServiceServicer_to_server
 from .schema_pb2_grpc import GatewayServiceStub
-from .utils import ConnectionPool
-from typing import Dict
+
 
 class ToolService(ToolServiceServicer):
     """Base ToolService class for handling tool requests and registration with gateway."""
@@ -51,7 +46,7 @@ class ToolService(ToolServiceServicer):
             input_mode: Expected input modality (TEXT, IMAGE, etc.)
             output_mode: Output modality provided by the tool
         """
-        self.tool_id = tool_id if tool_id else str(uuid.uuid4())
+        self.tool_id = tool_id if tool_id else f"tool_{str(uuid.uuid4())}"
         self.name = name if name else self.tool_id
         self.address = address
         self.gateway_address = gateway_address

@@ -1,10 +1,22 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 16 15:00:00 2025
+
+@author: haixinwa
+"""
+
+# -*- coding: utf-8 -*-
+
 import grpc
 from typing import Dict, Union, AsyncIterable
 from .utils import ConnectionPool
-from .schema_pb2_grpc import (GatewayServiceServicer,
-                              AgentServiceStub, ToolServiceStub,
-                              add_GatewayServiceServicer_to_server)
-from . import schema_pb2
+
+# Import the generated proto modules
+from .schema_pb2 import AgentInfo, RegisterAgentResponse, ToolInfo, RegisterToolResponse, \
+    AgentMessage, ToolRequest, ToolResponse, GetNodesRequest, GetNodesResponse, \
+    Peer
+from .schema_pb2_grpc import GatewayServiceServicer, add_GatewayServiceServicer_to_server
+from .schema_pb2_grpc import AgentServiceStub, ToolServiceStub
 
 
 class GatewayService(GatewayServiceServicer):
@@ -13,17 +25,17 @@ class GatewayService(GatewayServiceServicer):
         self.server = None
         self.address = ""
 
-        self.registry: Dict[str, Union[schema_pb2.AgentInfo, schema_pb2.ToolInfo]] = {}
-        self.connection_pool = ConnectionPool()
+        self.registry: Dict[str, Union[AgentInfo, ToolInfo]] = {}
+        self._connection_pool = ConnectionPool()
 
-    async def _forward_agent_message(self, message: schema_pb2.AgentMessage) -> AsyncIterable[schema_pb2.AgentMessage]:
+    async def _forward_agent_message(self, message: AgentMessage) -> AsyncIterable[AgentMessage]:
         """消息转发核心逻辑"""
         receiver_info = self.registry.get(message.receiver_id)
         if not receiver_info:
             print(f"<GW>: Routing failed: Receiver {message.receiver_id} not found")
             return
 
-        stub = self.connection_pool.get_stub(receiver_info.address)
+        stub = self._connection_pool.get_stub(receiver_info.address)
 
         try:
             # 调用流方法
@@ -41,14 +53,14 @@ class GatewayService(GatewayServiceServicer):
             del self.registry[message.receiver_id] # 移除失效节点
             return
 
-    async def _forward_tool_request(self, request: schema_pb2.ToolRequest) -> schema_pb2.ToolResponse:
+    async def _forward_tool_request(self, request: ToolRequest) -> ToolResponse:
         """消息转发核心逻辑"""
         receiver_info = self.registry.get(request.receiver_id)
         if not receiver_info:
             print(f"<GW>: Routing failed: Receiver {request.receiver_id} not found")
             return
 
-        stub = self.connection_pool.get_stub(receiver_info.address)
+        stub = self._connection_pool.get_stub(receiver_info.address)
 
         try:
             response = await stub.CallTool(request)
@@ -63,15 +75,15 @@ class GatewayService(GatewayServiceServicer):
     async def _collect_node_peers(self) -> list:
         peers = list()
         for info in list(self.registry.values()):
-            peer = schema_pb2.Peer()
+            peer = Peer()
             peer.agent_info.CopyFrom(info)
             peers.append(peer)
 
         return peers
 
     async def RouteAgentCalling(self,
-                                request_iterator: AsyncIterable[schema_pb2.AgentMessage],
-                                context: grpc.aio.ServicerContext) -> AsyncIterable[schema_pb2.AgentMessage]:
+                                request_iterator: AsyncIterable[AgentMessage],
+                                context: grpc.aio.ServicerContext) -> AsyncIterable[AgentMessage]:
         """消息路由主入口"""
         async for message in request_iterator:
             # route 响应流
@@ -79,44 +91,44 @@ class GatewayService(GatewayServiceServicer):
                 yield response
 
     async def RouteToolCalling(self,
-                               request: schema_pb2.ToolRequest,
-                               context: grpc.aio.ServicerContext) -> schema_pb2.ToolResponse:
+                               request: ToolRequest,
+                               context: grpc.aio.ServicerContext) -> ToolResponse:
         response = await self._forward_tool_request(request)
         return response
 
     async def RegisterAgent(self,
-                            request: schema_pb2.AgentInfo,
-                            context: grpc.aio.ServicerContext) -> schema_pb2.RegisterAgentResponse:
+                            request: AgentInfo,
+                            context: grpc.aio.ServicerContext) -> RegisterAgentResponse:
 
         self.registry[request.agent_id] = request
-        await self.connection_pool.create_stub(request.address, AgentServiceStub)
+        await self._connection_pool.create_stub(request.address, AgentServiceStub)
         print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
 
         peers = await self._collect_node_peers()  # collect peers
 
-        return schema_pb2.RegisterAgentResponse(
+        return RegisterAgentResponse(
             success=True,
             peers=peers
         )
 
     async def RegisterTool(self,
-                           request: schema_pb2.ToolInfo,
-                           context: grpc.aio.ServicerContext) -> schema_pb2.RegisterToolResponse:
+                           request: ToolInfo,
+                           context: grpc.aio.ServicerContext) -> RegisterToolResponse:
         self.registry[request.tool_id] = request
-        await self.connection_pool.create_stub(request.address, ToolServiceStub)
+        await self._connection_pool.create_stub(request.address, ToolServiceStub)
         print(f"<GW>: Register {request.tool_id} (addr in {request.address})")
-        return schema_pb2.RegisterToolResponse(
+        return RegisterToolResponse(
             success=True
         )
 
     async def GetNodes(self,
-                       request: schema_pb2.GetNodesRequest,
-                       context: grpc.aio.ServicerContext) -> schema_pb2.GetNodesResponse:
+                       request: GetNodesRequest,
+                       context: grpc.aio.ServicerContext) -> GetNodesResponse:
 
         print(f"<GW>: Agent {request.agent_id} request nodes info")
         peers = await self._collect_node_peers()  # collect peers
 
-        return schema_pb2.GetNodesResponse(
+        return GetNodesResponse(
             peers=peers
         )
 
