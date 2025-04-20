@@ -55,24 +55,24 @@ class ExampleAgent(AgentService):
 
 async def main():
     # 启动网关, Agent1, Agent2
-    gw_local = GatewayService(gw_id="gw_local")
-    agent1 = ExampleAgent(agent_id="agent1")
-    agent2 = ExampleAgent(agent_id="agent2")
+    gw_local = GatewayService(address="localhost:50051", gw_id="gw_local")
+    agent1 = ExampleAgent(address="localhost:50052", agent_id="agent1")
+    agent2 = ExampleAgent(address="localhost:50052", agent_id="agent2")
 
-    asyncio.create_task(gw_local.start(port=50051))
-    asyncio.create_task(agent1.start(port=50052))
-    asyncio.create_task(agent2.start(port=50053))
+    asyncio.create_task(gw_local.start())
+    asyncio.create_task(agent1.start())
+    asyncio.create_task(agent2.start())
 
     # 确保网关, Agent1, Agent2服务已启动
     await asyncio.sleep(5)
 
     # 连接网关
-    await agent1.connect_to_gateway(gateway_addr="localhost:50051")
-    await agent2.connect_to_gateway(gateway_addr="localhost:50051")
+    await agent1.connect_to_gateway(gateway_address="localhost:50051")
+    await agent2.connect_to_gateway(gateway_address="localhost:50051")
 
     # 和网关建立流服务
-    asyncio.create_task(agent1.create_agent_route_stream(gateway_addr="localhost:50051"))
-    asyncio.create_task(agent2.create_agent_route_stream(gateway_addr="localhost:50051"))
+    asyncio.create_task(agent1.create_routed_agent_stream())
+    asyncio.create_task(agent2.create_routed_agent_stream())
 
     # 确保Agent1, Agent2已连接
     await asyncio.sleep(5)
