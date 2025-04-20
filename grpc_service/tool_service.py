@@ -22,10 +22,9 @@ class ToolService(ToolServiceServicer):
     """Base ToolService class for handling tool requests and registration with gateway."""
     
     def __init__(self, 
+                 address: str,
                  tool_id: str = None,
                  name: str = None,
-                 address: str = None,
-                 gateway_address: str = None,
                  domain: str = "default",
                  description: str = "",
                  version: str = "1.0.0",
@@ -36,20 +35,18 @@ class ToolService(ToolServiceServicer):
         Initialize a new ToolService instance.
         
         Args:
+            address: Address where this tool service will be hosted (e.g., "localhost:50051")
             tool_id: Unique identifier for this tool (defaults to UUID if not provided)
             name: Human-readable name for this tool
-            address: Address where this tool service will be hosted (e.g., "localhost:50051")
-            gateway_address: Address of the gateway to register with (e.g., "localhost:50050")
             domain: Tool group/domain 
             description: Detailed description of the tool's functionality
             version: Tool version
             input_mode: Expected input modality (TEXT, IMAGE, etc.)
             output_mode: Output modality provided by the tool
         """
+        self.address = address
         self.tool_id = tool_id if tool_id else f"tool_{str(uuid.uuid4())}"
         self.name = name if name else self.tool_id
-        self.address = address
-        self.gateway_address = gateway_address
         self.domain = domain
         self.description = description
         self.version = version
@@ -62,6 +59,7 @@ class ToolService(ToolServiceServicer):
         
         # gRPC server for this tool service
         self._server = None
+
         #Stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
@@ -134,11 +132,11 @@ class ToolService(ToolServiceServicer):
         Connect to the gateway service and register this tool.
         
         Args:
-            gateway_address: The address of the gateway service
+            gateway_address: Address of the gateway to register with
         """
-        self.gateway_address = gateway_address
-        await self._connection_pool.create_stub(self.gateway_address, GatewayServiceStub)
-        stub = self._connection_pool.get_stub(self.gateway_address)
+        self._gateway_address = gateway_address
+        await self._connection_pool.create_stub(self._gateway_address, GatewayServiceStub)
+        stub = self._connection_pool.get_stub(self._gateway_address)
         try:
             # Register Tool with gateway
             response = await stub.RegisterTool(self.tool_info)

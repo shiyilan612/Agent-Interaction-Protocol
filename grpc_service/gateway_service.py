@@ -8,6 +8,7 @@ Created on Fri Apr 16 15:00:00 2025
 # -*- coding: utf-8 -*-
 
 import grpc
+import uuid
 from typing import Dict, Union, AsyncIterable
 from .utils import ConnectionPool
 
@@ -20,17 +21,24 @@ from .schema_pb2_grpc import AgentServiceStub, ToolServiceStub
 
 
 class GatewayService(GatewayServiceServicer):
-    def __init__(self, gw_id: str):
-        self.gw_id = gw_id
-        self.server = None
-        self.address = ""
+    def __init__(self, 
+                 address: str,
+                 gw_id: str = None):
+        self.address = address
+        self.gw_id = gw_id if gw_id else f"gateway_{str(uuid.uuid4())}"
 
-        self.registry: Dict[str, Union[AgentInfo, ToolInfo]] = {}
+        # init registry dict
+        self._registry: Dict[str, Union[AgentInfo, ToolInfo]] = {}
+
+        # gRPC server for this tool service
+        self._server = None
+
+        #Stubs of nodes connected to this tool servic
         self._connection_pool = ConnectionPool()
 
     async def _forward_agent_message(self, message: AgentMessage) -> AsyncIterable[AgentMessage]:
         """消息转发核心逻辑"""
-        receiver_info = self.registry.get(message.receiver_id)
+        receiver_info = self._registry.get(message.receiver_id)
         if not receiver_info:
             print(f"<GW>: Routing failed: Receiver {message.receiver_id} not found")
             return
@@ -50,12 +58,12 @@ class GatewayService(GatewayServiceServicer):
 
         except grpc.RpcError as e:
             print(f"<GW>: Forwarding to {receiver_info.address} failed: {e.code()}")
-            del self.registry[message.receiver_id] # 移除失效节点
+            del self._registry[message.receiver_id] # 移除失效节点
             return
 
     async def _forward_tool_request(self, request: ToolRequest) -> ToolResponse:
         """消息转发核心逻辑"""
-        receiver_info = self.registry.get(request.receiver_id)
+        receiver_info = self._registry.get(request.receiver_id)
         if not receiver_info:
             print(f"<GW>: Routing failed: Receiver {request.receiver_id} not found")
             return
@@ -69,12 +77,12 @@ class GatewayService(GatewayServiceServicer):
 
         except grpc.RpcError as e:
             print(f"<GW>: Forwarding to {receiver_info.address} failed: {e.code()}")
-            del self.registry[request.receiver_id] # 移除失效节点
+            del self._registry[request.receiver_id] # 移除失效节点
             return
 
     async def _collect_node_peers(self) -> list:
         peers = list()
-        for info in list(self.registry.values()):
+        for info in list(self._registry.values()):
             peer = Peer()
             peer.agent_info.CopyFrom(info)
             peers.append(peer)
@@ -100,7 +108,7 @@ class GatewayService(GatewayServiceServicer):
                             request: AgentInfo,
                             context: grpc.aio.ServicerContext) -> RegisterAgentResponse:
 
-        self.registry[request.agent_id] = request
+        self._registry[request.agent_id] = request
         await self._connection_pool.create_stub(request.address, AgentServiceStub)
         print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
 
@@ -114,7 +122,7 @@ class GatewayService(GatewayServiceServicer):
     async def RegisterTool(self,
                            request: ToolInfo,
                            context: grpc.aio.ServicerContext) -> RegisterToolResponse:
-        self.registry[request.tool_id] = request
+        self._registry[request.tool_id] = request
         await self._connection_pool.create_stub(request.address, ToolServiceStub)
         print(f"<GW>: Register {request.tool_id} (addr in {request.address})")
         return RegisterToolResponse(
@@ -132,17 +140,24 @@ class GatewayService(GatewayServiceServicer):
             peers=peers
         )
 
-    async def start(self, port: int):
-        self.server = grpc.aio.server()
-        add_GatewayServiceServicer_to_server(self, self.server)
-        self.address = f'localhost:{port}'
-        self.server.add_insecure_port(self.address)
-        await self.server.start()
+    async def start(self):
+        self._server = grpc.aio.server()
+        add_GatewayServiceServicer_to_server(self, self._server)
+        self._server.add_insecure_port(self.address)
+        await self._server.start()
         print(f"<{self.gw_id}>: Gateway {self.gw_id} started on {self.address}")
 
-        # 等待结束
+        # Wait for termination
         try:
-            await self.server.wait_for_termination()
+            await self._server.wait_for_termination()
         finally:
-            # 确保正确关闭服务
-            await self.server.stop(1)  # 1秒超时
+            #  Ensure proper server shutdown
+            await self._server.stop(1)  # 1 second timeout
+
+    async def stop(self) -> None:
+        """Stop the Agent service gRPC server."""
+        if self._server:
+            await self._server.stop(grace=None)
+            print(f"Agent service at {self.address} stopped")
+        # Close all connections in the pool
+        await self._connection_pool.close_all()
