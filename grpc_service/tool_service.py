@@ -60,7 +60,7 @@ class ToolService(ToolServiceServicer):
         # gRPC server for this tool service
         self._server = None
 
-        #Stubs of nodes connected to this tool service
+        # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
     async def process_tool_request(self, request: ToolRequest) -> ToolResponse:

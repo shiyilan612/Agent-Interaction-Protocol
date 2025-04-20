@@ -33,7 +33,7 @@ class GatewayService(GatewayServiceServicer):
         # gRPC server for this tool service
         self._server = None
 
-        #Stubs of nodes connected to this tool servic
+        # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
     async def _forward_agent_message(self, message: AgentMessage) -> AsyncIterable[AgentMessage]:

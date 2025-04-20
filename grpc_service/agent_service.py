@@ -65,7 +65,7 @@ class AgentService(AgentServiceServicer):
         # gRPC server for this tool service
         self._server = None
 
-        #Stubs of nodes connected to this tool servic
+        # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
     async def handle_outgoing_message(self) -> AgentMessage:
