@@ -13,11 +13,9 @@ from typing import Dict, Union, AsyncIterable
 from .utils import ConnectionPool
 
 # Import the generated proto modules
-from .schema_pb2 import AgentInfo, RegisterAgentResponse, ToolInfo, RegisterToolResponse, \
-    AgentMessage, ToolRequest, ToolResponse, GetNodesRequest, GetNodesResponse, \
-    Peer
 from .schema_pb2_grpc import GatewayServiceServicer, add_GatewayServiceServicer_to_server
 from .schema_pb2_grpc import AgentServiceStub, ToolServiceStub
+from . import schema_pb2 as pb2
 
 
 class GatewayService(GatewayServiceServicer):
@@ -28,7 +26,7 @@ class GatewayService(GatewayServiceServicer):
         self.gw_id = gw_id if gw_id else f"gateway_{str(uuid.uuid4())}"
 
         # init registry dict
-        self._registry: Dict[str, Union[AgentInfo, ToolInfo]] = {}
+        self._registry: Dict[str, Union[pb2.AgentInfo, pb2.ToolInfo]] = {}
 
         # gRPC server for this tool service
         self._server = None
@@ -36,7 +34,7 @@ class GatewayService(GatewayServiceServicer):
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
-    async def _forward_agent_message(self, message: AgentMessage) -> AsyncIterable[AgentMessage]:
+    async def _forward_agent_message(self, message: pb2.AgentMessage) -> AsyncIterable[pb2.AgentMessage]:
         """消息转发核心逻辑"""
         receiver_info = self._registry.get(message.receiver_id)
         if not receiver_info:
@@ -61,7 +59,7 @@ class GatewayService(GatewayServiceServicer):
             del self._registry[message.receiver_id] # 移除失效节点
             return
 
-    async def _forward_tool_request(self, request: ToolRequest) -> ToolResponse:
+    async def _forward_tool_request(self, request: pb2.ToolRequest) -> pb2.ToolResponse:
         """消息转发核心逻辑"""
         receiver_info = self._registry.get(request.receiver_id)
         if not receiver_info:
@@ -83,15 +81,15 @@ class GatewayService(GatewayServiceServicer):
     async def _collect_node_peers(self) -> list:
         peers = list()
         for info in list(self._registry.values()):
-            peer = Peer()
+            peer = pb2.Peer()
             peer.agent_info.CopyFrom(info)
             peers.append(peer)
 
         return peers
 
     async def RouteAgentCalling(self,
-                                request_iterator: AsyncIterable[AgentMessage],
-                                context: grpc.aio.ServicerContext) -> AsyncIterable[AgentMessage]:
+                                request_iterator: AsyncIterable[pb2.AgentMessage],
+                                context: grpc.aio.ServicerContext) -> AsyncIterable[pb2.AgentMessage]:
         """消息路由主入口"""
         async for message in request_iterator:
             # route 响应流
@@ -99,14 +97,14 @@ class GatewayService(GatewayServiceServicer):
                 yield response
 
     async def RouteToolCalling(self,
-                               request: ToolRequest,
-                               context: grpc.aio.ServicerContext) -> ToolResponse:
+                               request: pb2.ToolRequest,
+                               context: grpc.aio.ServicerContext) -> pb2.ToolResponse:
         response = await self._forward_tool_request(request)
         return response
 
     async def RegisterAgent(self,
-                            request: AgentInfo,
-                            context: grpc.aio.ServicerContext) -> RegisterAgentResponse:
+                            request: pb2.AgentInfo,
+                            context: grpc.aio.ServicerContext) -> pb2.RegisterAgentResponse:
 
         self._registry[request.agent_id] = request
         await self._connection_pool.create_stub(request.address, AgentServiceStub)
@@ -114,29 +112,29 @@ class GatewayService(GatewayServiceServicer):
 
         peers = await self._collect_node_peers()  # collect peers
 
-        return RegisterAgentResponse(
+        return pb2.RegisterAgentResponse(
             success=True,
             peers=peers
         )
 
     async def RegisterTool(self,
-                           request: ToolInfo,
-                           context: grpc.aio.ServicerContext) -> RegisterToolResponse:
+                           request: pb2.ToolInfo,
+                           context: grpc.aio.ServicerContext) -> pb2.RegisterToolResponse:
         self._registry[request.tool_id] = request
         await self._connection_pool.create_stub(request.address, ToolServiceStub)
         print(f"<GW>: Register {request.tool_id} (addr in {request.address})")
-        return RegisterToolResponse(
+        return pb2.RegisterToolResponse(
             success=True
         )
 
     async def GetNodes(self,
-                       request: GetNodesRequest,
-                       context: grpc.aio.ServicerContext) -> GetNodesResponse:
+                       request: pb2.GetNodesRequest,
+                       context: grpc.aio.ServicerContext) -> pb2.GetNodesResponse:
 
         print(f"<GW>: Agent {request.agent_id} request nodes info")
         peers = await self._collect_node_peers()  # collect peers
 
-        return GetNodesResponse(
+        return pb2.GetNodesResponse(
             peers=peers
         )
 

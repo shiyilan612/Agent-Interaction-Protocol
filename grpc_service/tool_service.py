@@ -13,9 +13,9 @@ from typing import Dict
 from .utils import ConnectionPool
 
 # Import the generated proto modules
-from .schema_pb2 import ToolInfo, ToolRequest, ToolResponse, Mode
 from .schema_pb2_grpc import ToolServiceServicer, add_ToolServiceServicer_to_server
 from .schema_pb2_grpc import GatewayServiceStub
+from . import schema_pb2 as pb2
 
 
 class ToolService(ToolServiceServicer):
@@ -28,8 +28,8 @@ class ToolService(ToolServiceServicer):
                  domain: str = "default",
                  description: str = "",
                  version: str = "1.0.0",
-                 input_mode: Mode = Mode.TEXT,
-                 output_mode: Mode = Mode.TEXT,
+                 input_mode: pb2.Mode = pb2.Mode.TEXT,
+                 output_mode: pb2.Mode = pb2.Mode.TEXT,
                  arguments: Dict[str, str] = None):
         """
         Initialize a new ToolService instance.
@@ -66,13 +66,13 @@ class ToolService(ToolServiceServicer):
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
-    async def process_tool_request(self, request: ToolRequest) -> ToolResponse:
+    async def process_tool_request(self, request: pb2.ToolRequest) -> pb2.ToolResponse:
         """子类需要实现CallTool消息处理逻辑"""
         raise NotImplementedError
 
         
-    async def CallTool(self, request: ToolRequest, 
-                 context: grpc.aio.ServicerContext) -> ToolResponse:
+    async def CallTool(self, request: pb2.ToolRequest,
+                 context: grpc.aio.ServicerContext) -> pb2.ToolResponse:
         """
         Handle incoming tool requests (implements the gRPC service method).
         
@@ -114,9 +114,9 @@ class ToolService(ToolServiceServicer):
         # Close all connections in the pool
         await self._connection_pool.close_all()
     
-    def _create_tool_info(self) -> ToolInfo:
+    def _create_tool_info(self) -> pb2.ToolInfo:
         """Create a ToolInfo message for registration with the gateway."""
-        tool_info = ToolInfo(
+        tool_info = pb2.ToolInfo(
             tool_id=self.tool_id,
             address=self.address,
             name=self.name,
