@@ -14,9 +14,9 @@ from typing import Dict, Union, AsyncIterable, List
 from .utils import ConnectionPool
 
 # Import the generated proto modules
-from .schema_pb2 import AgentInfo, ToolInfo, AgentMessage, ToolRequest, ToolResponse, GetNodesRequest, Mode
 from .schema_pb2_grpc import AgentServiceServicer, add_AgentServiceServicer_to_server
 from .schema_pb2_grpc import GatewayServiceStub
+from . import schema_pb2 as pb2
 
 
 class AgentService(AgentServiceServicer):
@@ -27,10 +27,10 @@ class AgentService(AgentServiceServicer):
                  agent_id: str = None,
                  name: str = None,
                  domain: str = 'default',
-                 input_mode: Mode = Mode.TEXT,
-                 output_mode: Mode = Mode.TEXT,
+                 input_mode: pb2.Mode = pb2.Mode.TEXT,
+                 output_mode: pb2.Mode = pb2.Mode.TEXT,
                  description: str = '',
-                 skills: List[AgentInfo.AgentSkill] = [],
+                 skills: List[pb2.AgentInfo.AgentSkill] = [],
                  version: str = '1.0.0' ):
         """
         Initialize a new Agent instance.
@@ -60,7 +60,7 @@ class AgentService(AgentServiceServicer):
         self.agent_info = self._create_agent_info()
 
         # init peers dict
-        self._peers: Dict[str, Union[AgentInfo, ToolInfo]] = {}
+        self._peers: Dict[str, Union[pb2.AgentInfo, pb2.ToolInfo]] = {}
 
         # init gateway address
         self._gateway_address = None
@@ -71,15 +71,15 @@ class AgentService(AgentServiceServicer):
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
-    async def handle_outgoing_message(self) -> AgentMessage:
+    async def handle_outgoing_message(self) -> pb2.AgentMessage:
         """子类需要实现消息发送逻辑"""
         raise NotImplementedError
 
-    async def handle_incoming_message(self, message: AgentMessage):
+    async def handle_incoming_message(self, message: pb2.AgentMessage):
         """子类需要实现消息接收逻辑"""
         raise NotImplementedError
 
-    async def process_agent_message(self, message: AgentMessage) -> AgentMessage:
+    async def process_agent_message(self, message: pb2.AgentMessage) -> pb2.AgentMessage:
         """子类需要实现CallAgent消息处理逻辑"""
         raise NotImplementedError
 
@@ -122,11 +122,11 @@ class AgentService(AgentServiceServicer):
             else:
                 raise ValueError
     
-    def _create_agent_info(self) -> AgentInfo:
+    def _create_agent_info(self) -> pb2.AgentInfo:
         """
         Create a AgentInfo message for registration with the gateway.
         """
-        agent_info = AgentInfo(
+        agent_info = pb2.AgentInfo(
             agent_id=self.agent_id,
             address=self.address,
             name=self.name,
@@ -141,8 +141,8 @@ class AgentService(AgentServiceServicer):
         return agent_info
 
     async def CallAgent(self,
-                        request_iterator: AsyncIterable[AgentMessage],
-                        context:grpc.aio.ServicerContext) -> AsyncIterable[AgentMessage]:
+                        request_iterator: AsyncIterable[pb2.AgentMessage],
+                        context:grpc.aio.ServicerContext) -> AsyncIterable[pb2.AgentMessage]:
         """
         Handle incoming agent messages (implements the gRPC service method).
 
@@ -234,7 +234,7 @@ class AgentService(AgentServiceServicer):
         except Exception as e:
             print(f"Other exception: {str(e)}")
 
-    async def create_routed_tool_request(self, tool_request: ToolRequest) -> ToolResponse:
+    async def create_routed_tool_request(self, tool_request: pb2.ToolRequest) -> pb2.ToolResponse:
         """
         Call a tool through the gateway.
 
@@ -269,7 +269,7 @@ class AgentService(AgentServiceServicer):
 
         try:
             # query nodes
-            response = await stub.GetNodes(GetNodesRequest(agent_id=self.agent_id, domain=domain))
+            response = await stub.GetNodes(pb2.GetNodesRequest(agent_id=self.agent_id, domain=domain))
 
             # load peers
             await self._update_peers(response.peers)  # update peers

@@ -57,7 +57,7 @@ async def main():
     # 启动网关, Agent1, Agent2
     gw_local = GatewayService(address="localhost:50051", gw_id="gw_local")
     agent1 = ExampleAgent(address="localhost:50052", agent_id="agent1")
-    agent2 = ExampleAgent(address="localhost:50052", agent_id="agent2")
+    agent2 = ExampleAgent(address="localhost:50053", agent_id="agent2")
 
     asyncio.create_task(gw_local.start())
     asyncio.create_task(agent1.start())

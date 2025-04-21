@@ -74,59 +74,62 @@ message GetNodesResponse {
 message TaskInfo { // 任务信息
   string task_id = 1;
   repeated string parent_task_ids = 2;
-  enum StatusType {
-    CREATED = 0;
-    EXECUTING = 1;
-    WAITING = 2;
-    STOP = 3;
-    FINISH = 4;
+  enum MessageType {
+    TASK_QUEST = 0;      
+    TASK_RESPONSE = 1;   
   }
-  StatusType status = 3;
-  repeated string agent_ids = 4;
-  repeated string tool_ids = 5;
-  repeated string resource_ids = 6;
+  MessageType message_type = 3;
+  enum Status {
+    EXECUTING = 0;
+    WAITING = 1;
+    BREAK = 2;
+    FINISH = 3;
+  }
+  Status status = 4;
 }
 
 message AgentMessage { // Agent消息
   string sender_id = 1;
   string receiver_id = 2;
-  enum MessageType {
-    REGULAR = 0;      // 普通消息
-    PROGRESS_QUERY = 1;        // 任务进度问询
-    PROGRESS_RESPONSE = 2;     // 任务进度回应
-    PROGRESS_UPDATE = 3; // 任务进度更新
-    STOP = 4; // 结束交互
+  string session_id = 3;
+  enum SessionStatus {
+    START_QUEST = 0; 
+    START_RESPONSE = 1; // 普通消息
+    STOP_QUEST = 2;  // 结束交互
+    STOP_RESPONSE = 3; 
   }
-  MessageType message_type = 3;
+  SessionStatus session_status = 4;
+  TaskInfo task = 5;
   oneof content {
-    string text = 4;
-    bytes binary = 5;
+    string text = 6;
+    bytes binary = 7;
   }
-  Mode content_mode = 6;
-  string message_id = 7;
-  string reply_to_message_id = 8; // 回复哪条消息(可选)
-  repeated TaskInfo task = 9; //可选
+  Mode content_mode = 8;
+  string message_id = 9;
+  string reply_to_message_id = 10; // 回复哪条消息(可选)
 }
 
 /* Tool调用 */
 message ToolRequest {
   string sender_id = 1;
   string receiver_id = 2;
-  string tool_name = 3;
-  map<string, string> arguments = 4;
+  string session_id = 3;
+  string tool_name = 4;
+  map<string, string> arguments = 5;
 }
 
 message ToolResponse {
   string sender_id = 1;
   string receiver_id = 2;
-  bool success = 3;
+  string session_id = 3;
+  bool success = 4;
   oneof content {
-    string text = 4;
-    bytes image = 5;
-    bytes audio = 6;
-    bytes embedded = 7;
+    string text = 5;
+    bytes image = 6;
+    bytes audio = 7;
+    bytes embedded = 8;
   }
-  string error_message = 8;
+  string error_message = 9;
 }
 
 /*  Agent服务定义 */
