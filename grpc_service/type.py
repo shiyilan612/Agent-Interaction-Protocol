@@ -31,23 +31,21 @@ class Mode(Enum):
     NONE = 4
 
 
-class MessageType(Enum):
-    TASK_QUEST = 0
-    TASK_RESPONSE = 1
-
-
-class Status(Enum):
-    EXECUTING = 0
-    WAITING = 1
-    BREAK = 2
-    FINISH = 3
-
-
 class SessionStatus(Enum):
     START_QUEST = 0
     START_RESPONSE = 1
-    STOP_QUEST = 2
-    STOP_RESPONSE = 3
+    HOLD_QUEST = 2
+    HOLD_RESPONSE = 3
+    STOP_QUEST = 4
+    STOP_RESPONSE = 5
+
+
+class TaskStatus(Enum):
+    CREATE=0
+    EXECUTING = 1
+    WAITING = 2
+    BREAK = 3
+    FINISH = 4
 
 
 # -------------------- Message Define--------------------
@@ -71,19 +69,16 @@ class AgentSkill:
 
 
 class TaskInfo:
-    def __init__(self, task_id: str, parent_task_ids: List[str],
-                 message_type: MessageType, status: Status):
+    def __init__(self, task_id: str, parent_task_ids: List[str], task_status: TaskStatus):
         self.task_id = task_id
         self.parent_task_ids = parent_task_ids
-        self.message_type = message_type
-        self.status = status
+        self.task_status = task_status
 
     def to_grpc(self) -> pb2.TaskInfo:
         return pb2.TaskInfo(
             task_id=self.task_id,
             parent_task_ids=self.parent_task_ids,
-            message_type=convert_enum(self.message_type, pb2.TaskInfo.MessageType),
-            status=convert_enum(self.status, pb2.TaskInfo.Status)
+            task_status=convert_enum(self.task_status, pb2.TaskInfo.TaskStatus)
         )
 
     @classmethod
@@ -91,8 +86,7 @@ class TaskInfo:
         return cls(
             task_id=grpc_obj.task_id,
             parent_task_ids=list(grpc_obj.parent_task_ids),
-            message_type=restore_enum(grpc_obj.message_type, MessageType),
-            status=restore_enum(grpc_obj.status, Status)
+            task_status=restore_enum(grpc_obj.task_status, TaskStatus)
         )
 
 
@@ -103,10 +97,10 @@ class Peer:
 
     def to_grpc(self) -> pb2.Peer:
         grpc_peer = pb2.Peer()
-        if self.agent_info is not None:
-            grpc_peer.agent_info.CopyFrom(self.agent_info.to_grpc())
-        elif self.tool_info is not None:
-            grpc_peer.tool_info.CopyFrom(self.tool_info.to_grpc())
+        if self._agent_info is not None:
+            grpc_peer.agent_info.CopyFrom(self._agent_info.to_grpc())
+        elif self._agent_info is not None:
+            grpc_peer.tool_info.CopyFrom(self._agent_info.to_grpc())
         return grpc_peer
 
     @classmethod
@@ -281,14 +275,14 @@ class GetNodesResponse:
 
 class AgentMessage:
     def __init__(self, sender_id: str, receiver_id: str, session_id: str,
-                 session_status: SessionStatus, task: TaskInfo,
+                 session_status: SessionStatus, task_info: TaskInfo,
                  content: Union[str, bytes], content_mode: Mode,
-                 message_id: str, reply_to_message_id: Optional[str] = None):
+                 message_id: str, reply_to_message_id: str):
         self.sender_id = sender_id
         self.receiver_id = receiver_id
         self.session_id = session_id
         self.session_status = session_status
-        self.task = task
+        self.task_info = task_info
         self.content = content
         self.content_mode = content_mode
         self.message_id = message_id
@@ -300,16 +294,16 @@ class AgentMessage:
             receiver_id=self.receiver_id,
             session_id=self.session_id,
             session_status=convert_enum(self.session_status, pb2.AgentMessage.SessionStatus),
-            task=self.task.to_grpc(),
+            task_info=self.task_info.to_grpc(),
             content_mode=convert_enum(self.content_mode, pb2.Mode),
-            message_id=self.message_id
+            message_id=self.message_id,
+            reply_to_message_id=self.reply_to_message_id
         )
         if isinstance(self.content, str):
             grpc_obj.text = self.content
         elif isinstance(self.content, bytes):
             grpc_obj.binary = self.content
-        if self.reply_to_message_id:
-            grpc_obj.reply_to_message_id = self.reply_to_message_id
+
         return grpc_obj
 
     @classmethod
@@ -320,11 +314,11 @@ class AgentMessage:
             receiver_id=grpc_obj.receiver_id,
             session_id=grpc_obj.session_id,
             session_status=restore_enum(grpc_obj.session_status, SessionStatus),
-            task=TaskInfo.from_grpc(grpc_obj.task),
+            task_info=TaskInfo.from_grpc(grpc_obj.task_info),
             content=content,
             content_mode=restore_enum(grpc_obj.content_mode, Mode),
             message_id=grpc_obj.message_id,
-            reply_to_message_id=grpc_obj.reply_to_message_id if grpc_obj.reply_to_message_id else None
+            reply_to_message_id=grpc_obj.reply_to_message_id
         )
 
 

@@ -74,18 +74,14 @@ message GetNodesResponse {
 message TaskInfo { // 任务信息
   string task_id = 1;
   repeated string parent_task_ids = 2;
-  enum MessageType {
-    TASK_QUEST = 0;      
-    TASK_RESPONSE = 1;   
+  enum TaskStatus {
+    CREATE=0;
+    EXECUTING = 1;
+    WAITING = 2;
+    BREAK = 3;
+    FINISH = 4;
   }
-  MessageType message_type = 3;
-  enum Status {
-    EXECUTING = 0;
-    WAITING = 1;
-    BREAK = 2;
-    FINISH = 3;
-  }
-  Status status = 4;
+  TaskStatus task_status = 4;
 }
 
 message AgentMessage { // Agent消息
@@ -94,12 +90,14 @@ message AgentMessage { // Agent消息
   string session_id = 3;
   enum SessionStatus {
     START_QUEST = 0; 
-    START_RESPONSE = 1; // 普通消息
-    STOP_QUEST = 2;  // 结束交互
-    STOP_RESPONSE = 3; 
+    START_RESPONSE = 1;
+    HOLD_QUEST = 2;
+    HOLD_RESPONSE = 3;
+    STOP_QUEST = 4;
+    STOP_RESPONSE = 5;
   }
   SessionStatus session_status = 4;
-  TaskInfo task = 5;
+  TaskInfo task_info = 5;
   oneof content {
     string text = 6;
     bytes binary = 7;
