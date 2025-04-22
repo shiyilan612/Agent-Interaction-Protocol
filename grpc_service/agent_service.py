@@ -71,38 +71,9 @@ class AgentService(AgentServiceServicer):
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
-    async def handle_outgoing_message(self) -> pb2.AgentMessage:
-        """子类需要实现消息发送逻辑"""
-        raise NotImplementedError
-
-    async def handle_incoming_message(self, message: pb2.AgentMessage):
-        """子类需要实现消息接收逻辑"""
-        raise NotImplementedError
-
     async def process_agent_message(self, message: pb2.AgentMessage) -> pb2.AgentMessage:
         """子类需要实现CallAgent消息处理逻辑"""
         raise NotImplementedError
-
-    async def _send_messages(self, stream):
-        """
-        Send messages to the stream.
-
-        Args:
-            stream (grpc.aio.StreamStreamClient): The gRPC stream to send messages to.
-        """
-        while True:
-            message = await self.handle_outgoing_message()
-            await stream.write(message)
-
-    async def _receive_messages(self, stream):
-        """
-        Receive messages from the stream.
-
-        Args:
-            stream (grpc.aio.StreamStreamClient): The gRPC stream to receive messages from.
-        """
-        async for response in stream:
-            await self.handle_incoming_message(response)
 
     async def _update_peers(self, new_peers):
         """
@@ -214,49 +185,6 @@ class AgentService(AgentServiceServicer):
                 pass
         except Exception as e:
             print(f"Other exception: {str(e)}")
-
-    async def create_routed_agent_stream(self):
-        """
-        Create a stream to communicate with the gateway.
-
-        """
-        stub = self._connection_pool.get_stub(self._gateway_address)
-        stream = stub.RouteAgentCalling()
-        send_task = asyncio.create_task(self._send_messages(stream))
-        recv_task = asyncio.create_task(self._receive_messages(stream))
-        try:
-            await asyncio.gather(send_task, recv_task)
-        except grpc.aio.AioRpcError as e:
-            print(f"RPC Error: {e.details()}")
-            if e.code() == grpc.StatusCode.UNKNOWN:
-                # Handle BrokenPipeError
-                pass
-        except Exception as e:
-            print(f"Other exception: {str(e)}")
-
-    async def create_routed_tool_request(self, tool_request: pb2.ToolRequest) -> pb2.ToolResponse:
-        """
-        Call a tool through the gateway.
-
-        Args:
-            tool_request (schema_pb2.ToolRequest): The request to invoke the tool.
-
-        Returns:
-            schema_pb2.ToolResponse: The response from the tool.
-        """
-        stub = self._connection_pool.get_stub(self._gateway_address)
-
-        try:
-            response = await stub.RouteToolCalling(tool_request)
-        except grpc.RpcError as e:
-            print(f"RPC Error: {e.details()}")
-            if e.code() == grpc.StatusCode.UNKNOWN:
-                # Handle BrokenPipeError
-                pass
-        except Exception as e:
-            print(f"Other exception: {str(e)}")
-        
-        return response
 
     async def get_gateway_node(self, domain: str = 'default'):
         """

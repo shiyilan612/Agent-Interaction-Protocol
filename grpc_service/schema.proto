@@ -99,7 +99,7 @@ message AgentMessage { // Agent消息
     STOP_RESPONSE = 3; 
   }
   SessionStatus session_status = 4;
-  TaskInfo task = 5;
+  TaskInfo task_info = 5;
   oneof content {
     string text = 6;
     bytes binary = 7;

@@ -281,14 +281,14 @@ class GetNodesResponse:
 
 class AgentMessage:
     def __init__(self, sender_id: str, receiver_id: str, session_id: str,
-                 session_status: SessionStatus, task: TaskInfo,
+                 session_status: SessionStatus, task_info: TaskInfo,
                  content: Union[str, bytes], content_mode: Mode,
-                 message_id: str, reply_to_message_id: Optional[str] = None):
+                 message_id: str, reply_to_message_id: str):
         self.sender_id = sender_id
         self.receiver_id = receiver_id
         self.session_id = session_id
         self.session_status = session_status
-        self.task = task
+        self.task_info = task_info
         self.content = content
         self.content_mode = content_mode
         self.message_id = message_id
@@ -300,16 +300,16 @@ class AgentMessage:
             receiver_id=self.receiver_id,
             session_id=self.session_id,
             session_status=convert_enum(self.session_status, pb2.AgentMessage.SessionStatus),
-            task=self.task.to_grpc(),
+            task_info=self.task_info.to_grpc(),
             content_mode=convert_enum(self.content_mode, pb2.Mode),
-            message_id=self.message_id
+            message_id=self.message_id,
+            reply_to_message_id=self.reply_to_message_id
         )
         if isinstance(self.content, str):
             grpc_obj.text = self.content
         elif isinstance(self.content, bytes):
             grpc_obj.binary = self.content
-        if self.reply_to_message_id:
-            grpc_obj.reply_to_message_id = self.reply_to_message_id
+
         return grpc_obj
 
     @classmethod
@@ -320,11 +320,11 @@ class AgentMessage:
             receiver_id=grpc_obj.receiver_id,
             session_id=grpc_obj.session_id,
             session_status=restore_enum(grpc_obj.session_status, SessionStatus),
-            task=TaskInfo.from_grpc(grpc_obj.task),
+            task_info=TaskInfo.from_grpc(grpc_obj.task_info),
             content=content,
             content_mode=restore_enum(grpc_obj.content_mode, Mode),
             message_id=grpc_obj.message_id,
-            reply_to_message_id=grpc_obj.reply_to_message_id if grpc_obj.reply_to_message_id else None
+            reply_to_message_id=grpc_obj.reply_to_message_id
         )
 
 
