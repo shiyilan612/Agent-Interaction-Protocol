@@ -9,6 +9,7 @@ Created on Fri Apr 18 10:01:08 2025
 
 import grpc
 import uuid
+import asyncio
 from typing import Dict
 from .utils import ConnectionPool
 
@@ -66,6 +67,14 @@ class ToolService(ToolServiceServicer):
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
 
+    async def _handle_server_termination(self):
+        try:
+            await self._server.wait_for_termination()
+        except Exception as e:
+            print(f"Error during server termination: {e}")
+        finally:
+            await self._server.stop(1)
+
     async def process_tool_request(self, request: pb2.ToolRequest) -> pb2.ToolResponse:
         """子类需要实现CallTool消息处理逻辑"""
         raise NotImplementedError
@@ -98,13 +107,9 @@ class ToolService(ToolServiceServicer):
         self._server.add_insecure_port(self.address)
         await self._server.start()
         print(f"<{self.tool_id}>: Tool {self.tool_id} started on {self.address}")
-        
-        # Wait for termination
-        try:
-            await self._server.wait_for_termination()
-        finally:
-            # Ensure proper server shutdown
-            await self._server.stop(1)  # 1 second timeout
+        asyncio.create_task(self._handle_server_termination())
+
+        return self
             
     async def stop(self) -> None:
         """Stop the tool service gRPC server."""

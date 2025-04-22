@@ -1,87 +1,67 @@
-"""
-       +-------------+
-       |   Gateway   |
-       | (50051)     |
-       +------+------+
-              ▲
-              | 路由转发
-              ▼
-+-----------------------------+
-|  Agent1        Agent2       |
-|  Server:50052  Server:50053 |
-|  Client        Client       |
-+-----------------------------+
-"""
+import uuid
 import asyncio
-from grpc_service import schema_pb2, AgentService, GatewayService
 
-
-class ExampleAgent(AgentService):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.message_queue = asyncio.Queue()
-
-    async def handle_outgoing_message(self) -> schema_pb2.AgentMessage:
-        """实现RouteMessage消息发送逻辑"""
-        message = await self.message_queue.get()
-        return  message
-
-    async def handle_incoming_message(self, message: schema_pb2.AgentMessage):
-        """实现RouteMessage消息接收逻辑"""
-        print(f"<{self.agent_id}>: {message.text}")
-
-    async def process_agent_message(self, message: schema_pb2.AgentMessage) -> schema_pb2.AgentMessage:
-        """实现StreamCommunicate消息处理逻辑"""
-        print(f"<{self.agent_id}>: receive \"{message.text}\" from {message.sender_id}")
-
-        processed_message = schema_pb2.AgentMessage(
-            sender_id=self.agent_id,
-            receiver_id=message.sender_id,
-            text=f"Reply from {self.agent_id}: \"{message.text}\""
-        )
-
-        return processed_message
-
-    async def send_message(self, receiver_id: str, text: str):
-        print(f"<{self.agent_id}>: send \"{text}\" to {receiver_id}")
-
-        message = schema_pb2.AgentMessage(
-            sender_id=self.agent_id,
-            receiver_id=receiver_id,
-            text=text
-        )
-        await self.message_queue.put(message)
+from grpc_service.type import AgentMessage, AgentInfo, TaskInfo, AgentSkill, SessionStatus, TaskStatus, Mode
+from module.client import  AgentClient
+from module.server import AgentServer
 
 
 async def main():
-    # 启动网关, Agent1, Agent2
-    gw_local = GatewayService(address="localhost:50051", gw_id="gw_local")
-    agent1 = ExampleAgent(address="localhost:50052", agent_id="agent1")
-    agent2 = ExampleAgent(address="localhost:50053", agent_id="agent2")
+    async def process_request_func(message: AgentMessage) -> AgentMessage:
+        receiver_id = message.receiver_id
+        sender_id = message.sender_id
+        content = message.content
+        print(f"<{receiver_id}>: receive \"{content}\" from {sender_id} in session: {message.session_id}")
 
-    asyncio.create_task(gw_local.start())
-    asyncio.create_task(agent1.start())
-    asyncio.create_task(agent2.start())
+        message.content = f"Response: {content}"
+        message.sender_id = receiver_id
+        message.receiver_id = sender_id
+        message.task_info.task_status = TaskStatus.FINISH
+        message.session_status = SessionStatus.STOP_RESPONSE
 
-    # 确保网关, Agent1, Agent2服务已启动
-    await asyncio.sleep(5)
+        return message
 
-    # 连接网关
-    await agent1.connect_to_gateway(gateway_address="localhost:50051")
-    await agent2.connect_to_gateway(gateway_address="localhost:50051")
+    agent_info = AgentInfo(
+        agent_id=f"agent_{str(uuid.uuid4())}",
+        address="localhost:50051",
+        name="example agent",
+        domain="debug",
+        input_mode=Mode.TEXT,
+        output_mode=Mode.TEXT,
+        description="Hello world",
+        skills=[AgentSkill(skill_id="0", capability="send text")],
+        version="0.1"
+    )
+    example_agent_server = AgentServer(agent_info, process_request_func)
+    await example_agent_server.start()
+    print('Init Agent Server Done.')
 
-    # 和网关建立流服务
-    asyncio.create_task(agent1.create_routed_agent_stream())
-    asyncio.create_task(agent2.create_routed_agent_stream())
+    async def process_response_func(message: AgentMessage):
+        print(f"Received Response: {message.content}")
+        if message.session_status == SessionStatus.STOP_RESPONSE:
+            print("Session Stopped")
 
-    # 确保Agent1, Agent2已连接
-    await asyncio.sleep(5)
+    from grpc_service import AgentServiceStub
+    example_agent_client = AgentClient(process_response_func)
+    try:
+        await example_agent_client.start("localhost:50051", AgentServiceStub, "CallAgent")
+        print('Init Agent Client Done.')
 
-    # 模拟消息发送
-    await agent1.send_message("agent2", "Hello world")
+        example_msg = AgentMessage(content="Hello World",
+                                   sender_id="agent1",
+                                   receiver_id="agent1",
+                                   session_id="",
+                                   session_status=SessionStatus.START_QUEST,
+                                   task_info=TaskInfo(task_id='0', parent_task_ids=['0'], task_status=TaskStatus.CREATE),
+                                   content_mode=Mode.TEXT,
+                                   message_id='m0',
+                                   reply_to_message_id='m0')
+        await example_agent_client.send_message(example_msg)
 
-    # 保持事件循环运行（否则程序会立即退出）
-    await asyncio.sleep(20)
+        final_response = await example_agent_client.wait_completion()
+        print(f"Final response: {final_response.content}")
+    finally:
+        await example_agent_client.close()
 
 
 if __name__ == "__main__":

@@ -31,23 +31,21 @@ class Mode(Enum):
     NONE = 4
 
 
-class MessageType(Enum):
-    TASK_QUEST = 0
-    TASK_RESPONSE = 1
-
-
-class Status(Enum):
-    EXECUTING = 0
-    WAITING = 1
-    BREAK = 2
-    FINISH = 3
-
-
 class SessionStatus(Enum):
     START_QUEST = 0
     START_RESPONSE = 1
-    STOP_QUEST = 2
-    STOP_RESPONSE = 3
+    HOLD_QUEST = 2
+    HOLD_RESPONSE = 3
+    STOP_QUEST = 4
+    STOP_RESPONSE = 5
+
+
+class TaskStatus(Enum):
+    CREATE=0
+    EXECUTING = 1
+    WAITING = 2
+    BREAK = 3
+    FINISH = 4
 
 
 # -------------------- Message Define--------------------
@@ -71,19 +69,16 @@ class AgentSkill:
 
 
 class TaskInfo:
-    def __init__(self, task_id: str, parent_task_ids: List[str],
-                 message_type: MessageType, status: Status):
+    def __init__(self, task_id: str, parent_task_ids: List[str], task_status: TaskStatus):
         self.task_id = task_id
         self.parent_task_ids = parent_task_ids
-        self.message_type = message_type
-        self.status = status
+        self.task_status = task_status
 
     def to_grpc(self) -> pb2.TaskInfo:
         return pb2.TaskInfo(
             task_id=self.task_id,
             parent_task_ids=self.parent_task_ids,
-            message_type=convert_enum(self.message_type, pb2.TaskInfo.MessageType),
-            status=convert_enum(self.status, pb2.TaskInfo.Status)
+            task_status=convert_enum(self.task_status, pb2.TaskInfo.TaskStatus)
         )
 
     @classmethod
@@ -91,8 +86,7 @@ class TaskInfo:
         return cls(
             task_id=grpc_obj.task_id,
             parent_task_ids=list(grpc_obj.parent_task_ids),
-            message_type=restore_enum(grpc_obj.message_type, MessageType),
-            status=restore_enum(grpc_obj.status, Status)
+            task_status=restore_enum(grpc_obj.task_status, TaskStatus)
         )
 
 
