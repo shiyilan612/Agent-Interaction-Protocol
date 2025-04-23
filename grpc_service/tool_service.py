@@ -8,9 +8,7 @@ Created on Fri Apr 18 10:01:08 2025
 # -*- coding: utf-8 -*-
 
 import grpc
-import uuid
 import asyncio
-from typing import Dict
 from .utils import ConnectionPool
 
 # Import the generated proto modules
@@ -22,7 +20,12 @@ from . import schema_pb2 as pb2
 class ToolService(ToolServiceServicer):
     """Base ToolService class for handling tool requests and registration with gateway."""
     
-    def __init__(self, 
+    def __init__(self, tool_info: pb2.ToolInfo):
+        """
+        Initialize a new Tool instance.
+
+        Args:
+            tool_info:
                  address: str,
                  tool_id: str = None,
                  name: str = None,
@@ -31,32 +34,11 @@ class ToolService(ToolServiceServicer):
                  version: str = "1.0.0",
                  input_mode: pb2.Mode = pb2.Mode.TEXT,
                  output_mode: pb2.Mode = pb2.Mode.TEXT,
-                 arguments: Dict[str, str] = None):
+                 arguments: Dict[str, str] = None
         """
-        Initialize a new ToolService instance.
-        
-        Args:
-            address: Address where this tool service will be hosted (e.g., "localhost:50051")
-            tool_id: Unique identifier for this tool (defaults to UUID if not provided)
-            name: Human-readable name for this tool
-            domain: Tool group/domain 
-            description: Detailed description of the tool's functionality
-            version: Tool version
-            input_mode: Expected input modality (TEXT, IMAGE, etc.)
-            output_mode: Output modality provided by the tool
-        """
-        self.address = address
-        self.tool_id = tool_id if tool_id else f"tool_{str(uuid.uuid4())}"
-        self.name = name if name else self.tool_id
-        self.domain = domain
-        self.description = description
-        self.version = version
-        self.input_mode = input_mode
-        self.output_mode = output_mode
-        self.arguments = arguments
-        
-        #creat tool info
-        self.tool_info = self._create_tool_info()
+        self.tool_info = tool_info
+        self.tool_id = self.tool_info.tool_id
+        self.address = self.tool_info.address
 
         # init gateway address
         self._gateway_address = None
@@ -75,11 +57,6 @@ class ToolService(ToolServiceServicer):
         finally:
             await self._server.stop(1)
 
-    async def process_tool_request(self, request: pb2.ToolRequest) -> pb2.ToolResponse:
-        """子类需要实现CallTool消息处理逻辑"""
-        raise NotImplementedError
-
-        
     async def CallTool(self, request: pb2.ToolRequest,
                  context: grpc.aio.ServicerContext) -> pb2.ToolResponse:
         """
@@ -92,8 +69,7 @@ class ToolService(ToolServiceServicer):
         Returns:
             ToolResponse containing the result or error
         """
-        processed_msg = await self.process_tool_request(request)
-        return processed_msg
+        pass
             
     async def start(self) -> None:
         """
@@ -118,22 +94,6 @@ class ToolService(ToolServiceServicer):
             print(f"Tool service at {self.address} stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
-    
-    def _create_tool_info(self) -> pb2.ToolInfo:
-        """Create a ToolInfo message for registration with the gateway."""
-        tool_info = pb2.ToolInfo(
-            tool_id=self.tool_id,
-            address=self.address,
-            name=self.name,
-            domain=self.domain,
-            input_mode=self.input_mode,
-            output_mode=self.output_mode,
-            description=self.description,
-            version=self.version,
-            arguments=self.arguments
-        )
-                
-        return tool_info
 
     async def connect_to_gateway(self, gateway_address: str):
         """

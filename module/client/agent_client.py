@@ -1,6 +1,6 @@
 import grpc
 import asyncio
-from typing import Dict, Callable
+from typing import Callable
 from grpc_service.type import AgentMessage
 from session import AgentClientSession
 
@@ -21,12 +21,9 @@ class AgentClient:
         await self.channel.channel_ready()
         stream_stream_call = getattr(stub(self.channel), callable_func)()
         self.session = AgentClientSession(stream_stream_call)
-        await self.session.create_session()
-
-        if not self.session:
-            raise RuntimeError("Not connected")
-
+        await self.session.activate()
         self._response_task = asyncio.create_task(self._process_responses())
+
         return self
 
     async def send_message(self, message: AgentMessage):
