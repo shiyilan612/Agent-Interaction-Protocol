@@ -1,6 +1,6 @@
 import time
 import asyncio
-from typing import Dict, Callable, Optional
+from typing import Optional
 from grpc_service.type import ToolRequest, ToolResponse
 
 
@@ -53,43 +53,3 @@ class ToolClientSession:
             self.active_session.cancel()
 
         self._cleanup()
-
-
-class ToolServerSession:
-    """A single session instance on the server side"""
-
-    def __init__(self, session_id: str, process_request_func: Callable):
-        self.session_id = session_id
-        self.process_request_func = process_request_func
-        self._processor_task = None
-
-    async def activate(self):
-        self._processor_task = asyncio.create_task(self.process_request_func)
-        return self
-
-    async def close(self):
-        if self._processor_task:
-            self._processor_task.cancel()
-
-
-class ToolServerSessionManager:
-    """session manager of Agent server"""
-
-    def __init__(self):
-        self.active_sessions: Dict[str, ToolServerSession] = {}
-        self._lock = asyncio.Lock()
-
-    async def create_or_get_session(self, session_id: str, process_request_func: Callable) -> ToolServerSession:
-        async with self._lock:
-            if session := self.active_sessions.get(session_id):
-                return session
-            new_session = ToolServerSession(session_id, process_request_func)
-            asyncio.create_task(new_session.activate())
-            self.active_sessions[session_id] = new_session
-
-            return new_session
-
-    async def close_session(self, session_id: str):
-        async with self._lock:
-            if session := self.active_sessions.pop(session_id, None):
-                await session.close()

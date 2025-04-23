@@ -1,14 +1,12 @@
 import grpc
-from typing import Callable
 from grpc_service.type import ToolRequest, ToolResponse
 from session import ToolClientSession
 
 
 class ToolClient:
-    def __init__(self, process_response_func: Callable):
+    def __init__(self):
         self.channel = None
         self.session = None
-        self.process_response_func = process_response_func
 
     async def start(self, server_address, stub, callable_func="CallTool"):
         self.channel = grpc.aio.insecure_channel(server_address)
