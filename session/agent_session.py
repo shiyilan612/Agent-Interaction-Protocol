@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Apr 21 12:00:00 2025
+
+@author: haixinwa
+"""
 import time
 import asyncio
 from typing import Dict, Callable
@@ -8,8 +14,8 @@ class AgentClientSession:
     def __init__(self, stream_stream_call, timeout=1e9):
         self.stream_stream_call = stream_stream_call
         self.timeout = timeout
-        self.session_id =  f"agent_session_{time.strftime('%Y%m%d_%H%M%S', time.localtime())}"
 
+        self.session_id =  None
         self.active_session = None
         self.response_queue = None
         self._receive_task = None
@@ -17,13 +23,13 @@ class AgentClientSession:
 
     async def _handle_response(self):
         try:
-            async for response in self.stream_stream_call:
-                _response = AgentMessage.from_grpc(response)
-                await self.response_queue.put(_response)
+            async for _response in self.stream_stream_call:
+                response = AgentMessage.from_grpc(_response)
+                await self.response_queue.put(response)
 
-                if _response.session_status == SessionStatus.STOP_RESPONSE:
+                if response.session_status == SessionStatus.STOP_RESPONSE:
                     if self.active_session and not self.active_session.done():
-                        self.active_session.set_result(_response)
+                        self.active_session.set_result(response)
         except Exception as e:
             if self.active_session and not self.active_session.done():
                 self.active_session.set_exception(e)
@@ -36,7 +42,8 @@ class AgentClientSession:
         self.response_queue = asyncio.Queue()
         self._running = False
 
-    async def create_session(self):
+    async def activate(self):
+        self.session_id = f"agent_session_{time.strftime('%Y%m%d_%H%M%S', time.localtime())}"
         self.active_session = asyncio.Future()
         self.response_queue = asyncio.Queue()
         self._running = True
@@ -96,8 +103,8 @@ class AgentServerSession:
         self.process_request_func = process_request_func
         self.request_queue = asyncio.Queue()
         self.response_queue = asyncio.Queue()
-        self._is_active = True
-        self._processor_task = asyncio.create_task(self._process_requests())
+        self._is_active = False
+        self._processor_task = None
 
     async def _process_requests(self):
         """asynchronous processing of requests"""
@@ -123,6 +130,12 @@ class AgentServerSession:
         finally:
             pass
 
+    async def activate(self):
+        self._is_active = True
+        self._processor_task = asyncio.create_task(self._process_requests())
+
+        return self
+
     async def put_request(self, message: AgentMessage):
         if self._is_active:
             await self.request_queue.put(message)
@@ -133,11 +146,8 @@ class AgentServerSession:
 
     async def close(self):
         self._is_active = False
-        self._processor_task.cancel()
-        try:
-            await self._processor_task
-        except asyncio.CancelledError:
-            pass
+        if self._processor_task:
+            self._processor_task.cancel()
 
 
 class AgentServerSessionManager:
@@ -160,6 +170,7 @@ class AgentServerSessionManager:
             if session := self.active_sessions.get(session_id):
                 return session
             new_session = AgentServerSession(session_id, process_request_func)
+            await new_session.activate()
             self.active_sessions[session_id] = new_session
 
             return new_session
