@@ -1,7 +1,17 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Apr 23 12:00:00 2025
+
+@author: haixinwa
+"""
+
+# -*- coding: utf-8 -*-
 import grpc
+import asyncio
 from typing import Callable
 from grpc_service import ToolService
 from grpc_service.type import ToolRequest, ToolInfo
+from session import ToolServerSession
 
 
 class ToolServer(ToolService):
@@ -11,8 +21,14 @@ class ToolServer(ToolService):
 
     async def CallTool(self, request, context):
         try:
-            response = await self.process_request_func(ToolRequest.from_grpc(request))
+            request = ToolRequest.from_grpc(request)
+            session_id = request.session_id
+
+            session = ToolServerSession(session_id, self.process_request_func)
+            response = await session.process_request(request)
+
             return response.to_grpc()
+
         except Exception as e:
             await context.abort(
                 code=grpc.StatusCode.INTERNAL,
