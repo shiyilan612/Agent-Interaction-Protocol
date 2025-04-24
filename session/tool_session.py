@@ -1,6 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Apr 23 12:00:00 2025
+
+@author: haixinwa
+"""
 import time
 import asyncio
-from typing import Optional
+from typing import Optional, Callable
 from grpc_service.type import ToolRequest, ToolResponse
 
 
@@ -33,7 +39,6 @@ class ToolClientSession:
         try:
             response =  await asyncio.wait_for(self.unary_unary_call(message.to_grpc()), timeout=self.timeout)
             _response = ToolResponse.from_grpc(response)
-            self.active_session.set_result('done')
 
             return _response
 
@@ -50,6 +55,21 @@ class ToolClientSession:
     async def close(self):
         self._running = False
         if self.active_session and not self.active_session.done():
+            self.active_session.set_result('done')
             self.active_session.cancel()
 
         self._cleanup()
+
+
+class ToolServerSession:
+    """A single session instance on the server side"""
+
+    def __init__(self, session_id: str, process_request_func: Callable):
+        self.session_id = session_id
+        self.process_request_func = process_request_func
+
+    async def process_request(self, request: ToolRequest) -> ToolResponse:
+        response = await self.process_request_func(ToolRequest.from_grpc(request))
+        response.session_id = self.session_id
+
+        return response
