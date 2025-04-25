@@ -98,13 +98,13 @@ class ContentItem:
     def to_grpc(self) -> pb2.ContentItem:
         grpc_item = pb2.ContentItem()
         if self._text is not None:
-            grpc_item.text.CopyFrom(self._text)
+            grpc_item.text = self._text
         elif self._image is not None:
-            grpc_item.image.CopyFrom(self._image)
+            grpc_item.image = self._image
         elif self._audio is not None:
-            grpc_item.audio.CopyFrom(self._audio)
+            grpc_item.audio = self._audio
         elif self._embedded is not None:
-            grpc_item.embedded.CopyFrom(self._embedded)
+            grpc_item.embedded = self._embedded
 
         return grpc_item
 
