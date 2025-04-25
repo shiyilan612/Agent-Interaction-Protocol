@@ -5,12 +5,12 @@ Created on Thur Mon Apr 24 19:00:00 2025
 @author: clleng
 """
 import grpc
-import asyncio
-from typing import Callable, Dict, Union, AsyncIterable
+from typing import Dict, AsyncIterable
 
 from grpc_service import GatewayService
-from grpc_service.type import AgentMessage, AgentInfo, SessionStatus
+from grpc_service.type import AgentInfo, ToolInfo
 from grpc_service import schema_pb2 as pb2
+
 
 class GatewayHost(GatewayService):
     def __init__(self,
@@ -79,15 +79,17 @@ class GatewayHost(GatewayService):
         Returns:
             Dict[str, AgentInfo]: Dictionary of agent_id -> AgentInfo
         """
-        agent_dict = {node_id: info for node_id, info in self._registry.items() if isinstance(info, pb2.AgentInfo)}
+        agent_dict = {node_id: AgentInfo.from_grpc(info)
+                      for node_id, info in self._registry.items() if isinstance(info, pb2.AgentInfo)}
         return agent_dict
     
-    async def get_tools_info(self) -> Dict[str, AgentInfo]:
+    async def get_tools_info(self) -> Dict[str, ToolInfo]:
         """
         Get all registered tools.
 
         Returns:
             Dict[str, AgentInfo]: Dictionary of tool_id -> ToolInfo
         """
-        tool_dict = {node_id: info for node_id, info in self._registry.items() if isinstance(info, pb2.ToolInfo)}
+        tool_dict = {node_id: ToolInfo.from_grpc(info)
+                     for node_id, info in self._registry.items() if isinstance(info, pb2.ToolInfo)}
         return tool_dict
