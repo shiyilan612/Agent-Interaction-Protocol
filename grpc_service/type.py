@@ -67,7 +67,12 @@ class AgentSkill:
 
 
 class TaskInfo:
-    def __init__(self, task_id: str, parent_task_ids: List[str], task_status: TaskStatus):
+    def __init__(
+        self,
+        task_id: str = "",
+        parent_task_ids: List[str] = list(),
+        task_status: TaskStatus = TaskStatus.CREATE
+    ):
         self.task_id = task_id
         self.parent_task_ids = parent_task_ids
         self.task_status = task_status
@@ -89,8 +94,13 @@ class TaskInfo:
 
 
 class ContentItem:
-    def __init__(self, text: Optional[str] = None, image: Optional[bytes] = None,
-        audio: Optional[bytes] = None, embedded: Optional[bytes] = None):
+    def __init__(
+        self,
+        text: Optional[str] = None,
+        image: Optional[bytes] = None,
+        audio: Optional[bytes] = None,
+        embedded: Optional[bytes] = None
+    ):
         self._text: Optional[str] = text
         self._image: Optional[bytes] = image
         self._audio: Optional[bytes] = audio
@@ -124,6 +134,33 @@ class ContentItem:
 
         return item
 
+    @classmethod
+    def write_text(cls, str):
+        item = cls()
+        item._text = str
+
+        return item
+
+    @classmethod
+    def write_image(cls, bytes):
+        item = cls()
+        item._image = bytes
+
+        return item
+
+    @classmethod
+    def write_audio(cls, bytes):
+        item = cls()
+        item._audio = bytes
+
+        return item
+
+    @classmethod
+    def write_embedded(cls, bytes):
+        item = cls()
+        item._embedded = bytes
+
+        return item
 
 class Peer:
     def __init__(self):
@@ -150,9 +187,18 @@ class Peer:
 
 
 class AgentInfo:
-    def __init__(self, agent_id: str, address: str, name: str, domain: str,
-                 input_mode: List[Mode], output_mode: List[Mode], description: str,
-                 skills: List[AgentSkill], version: str):
+    def __init__(
+        self,
+        agent_id: str = "",
+        address: str = "",
+        name: str = "",
+        domain: str = "",
+        input_mode: List[Mode] = None,
+        output_mode: List[Mode] = None,
+        description: str = "",
+        skills: List[AgentSkill] = None,
+        version: str = ""
+    ):
         self.agent_id = agent_id
         self.address = address
         self.name = name
@@ -216,9 +262,18 @@ class RegisterAgentResponse:
 
 
 class ToolInfo:
-    def __init__(self, tool_id: str, address: str, name: str, domain: str,
-                 input_mode: List[Mode], output_mode: List[Mode], description: str,
-                 arguments: Dict[str, str], version: str):
+    def __init__(
+        self,
+        tool_id: str = "",
+        address: str = "",
+        name: str = "",
+        domain: str = "",
+        input_mode: List[Mode] = None,
+        output_mode: List[Mode] = None,
+        description: str = "",
+        arguments: Dict[str, str] = None,
+        version: str = ""
+    ):
         self.tool_id = tool_id
         self.address = address
         self.name = name
@@ -309,10 +364,17 @@ class GetNodesResponse:
 
 
 class AgentMessage:
-    def __init__(self, sender_id: str, receiver_id: str, session_id: str,
-                 session_status: SessionStatus, task_info: TaskInfo,
-                 message_id: str, reply_to_message_id: str,
-                 content: List[ContentItem]):
+    def __init__(
+        self,
+        sender_id: str = "",
+        receiver_id: str = "",
+        session_id: str = "",
+        session_status: SessionStatus = SessionStatus.START_QUEST,
+        task_info: TaskInfo = TaskInfo(),
+        message_id: str = "",
+        reply_to_message_id: str = "",
+        content: List[ContentItem] = list()
+    ):
         self.sender_id = sender_id
         self.receiver_id = receiver_id
         self.session_id = session_id
@@ -349,10 +411,22 @@ class AgentMessage:
             content=[ContentItem.from_grpc(item) for item in grpc_obj.content]
         )
 
+    def add_content(self, item: ContentItem):
+        if not self.content:
+            self.content = list()
+
+        self.content.append(item)
+
 
 class ToolRequest:
-    def __init__( self, sender_id: str, receiver_id: str, session_id: str,
-                  tool_name: str, arguments: Dict[str, str]):
+    def __init__(
+        self,
+        sender_id: str = "",
+        receiver_id: str = "",
+        session_id: str = "",
+        tool_name: str = "",
+        arguments: Dict[str, str] = dict()
+    ):
         self.sender_id = sender_id
         self.receiver_id = receiver_id
         self.session_id = session_id
@@ -382,8 +456,15 @@ class ToolRequest:
 
 
 class ToolResponse:
-    def __init__(self, sender_id: str, receiver_id: str, session_id: str,
-                 is_error: bool, error_message: str, content: List[ContentItem]):
+    def __init__(
+        self,
+        sender_id: str = "",
+        receiver_id: str = "",
+        session_id: str ="",
+        is_error: bool = False,
+        error_message: str = "",
+        content: List[ContentItem] = list()
+    ):
         self.sender_id = sender_id
         self.receiver_id = receiver_id
         self.session_id = session_id
@@ -413,3 +494,9 @@ class ToolResponse:
             error_message=grpc_obj.error_message,
             content=[ContentItem.from_grpc(item) for item in grpc_obj.content]
         )
+
+    def add_content(self, item: ContentItem):
+        if not self.content:
+            self.content = list()
+
+        self.content.append(item)
