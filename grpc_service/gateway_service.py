@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 16 15:00:00 2025
 
-@author: haixinwa
+@author: haixinwa & clleng
 """
 
 # -*- coding: utf-8 -*-
@@ -15,7 +15,7 @@ from .utils import ConnectionPool
 
 # Import the generated proto modules
 from .schema_pb2_grpc import GatewayServiceServicer, add_GatewayServiceServicer_to_server
-from .schema_pb2_grpc import AgentServiceStub, ToolServiceStub
+from .schema_pb2_grpc import AgentServiceStub, ToolServiceStub, GatewayServiceStub
 from . import schema_pb2 as pb2
 
 
@@ -36,52 +36,39 @@ class GatewayService(GatewayServiceServicer):
         self._connection_pool = ConnectionPool()
 
     async def _forward_agent_message(self, message: pb2.AgentMessage) -> AsyncIterable[pb2.AgentMessage]:
-        """消息转发核心逻辑"""
-        receiver_info = self._registry.get(message.receiver_id)
-        if not receiver_info:
-            print(f"<GW>: Routing failed: Receiver {message.receiver_id} not found")
-            return
+        """Route agent message to the receiver.
 
-        stub = self._connection_pool.get_stub(receiver_info.address)
-
-        try:
-            # 调用流方法
-            stream = stub.CallAgent()
-
-            # 发送原始消息
-            await stream.write(message)
-
-            # 处理响应流
-            async for response in stream:
-                yield response
-
-        except grpc.RpcError as e:
-            print(f"<GW>: Forwarding to {receiver_info.address} failed: {e.code()}")
-            del self._registry[message.receiver_id] # 移除失效节点
-            return
+        Args:
+            message (pb2.AgentMessage): The message to be routed.
+        Returns:
+            AsyncIterable[pb2.AgentMessage]: The response from the receiver.
+        """
+        pass
 
     async def _forward_tool_request(self, request: pb2.ToolRequest) -> pb2.ToolResponse:
-        """消息转发核心逻辑"""
-        receiver_info = self._registry.get(request.receiver_id)
-        if not receiver_info:
-            print(f"<GW>: Routing failed: Receiver {request.receiver_id} not found")
-            return
+        """Route tool request to the receiver.
 
-        stub = self._connection_pool.get_stub(receiver_info.address)
+        Args:
+            request (pb2.ToolRequest): The tool request to be routed.
+        Returns:
+            pb2.ToolResponse: The response from the receiver.
+        """
+        pass
 
-        try:
-            response = await stub.CallTool(request)
+    async def _collect_node_peers(self, domain: str='default') -> list:
+        """
+        Collects the node peers of specified domain in the registry.
+        By default, it collects all peers in the registry.
 
-            return response
-
-        except grpc.RpcError as e:
-            print(f"<GW>: Forwarding to {receiver_info.address} failed: {e.code()}")
-            del self._registry[request.receiver_id] # 移除失效节点
-            return
-
-    async def _collect_node_peers(self) -> list:
+        Args:
+            domain (str): The domain to filter the peers. Default is 'default'.
+        Returns:
+            list: A list of Peer objects containing the node information.
+        """
         peers = list()
         for info in list(self._registry.values()):
+            if domain != 'default' and info.domain != domain:
+                continue
             peer = pb2.Peer()
             if isinstance(info, pb2.AgentInfo):
                 peer.agent_info.CopyFrom(info)
@@ -92,6 +79,52 @@ class GatewayService(GatewayServiceServicer):
             peers.append(peer)
 
         return peers
+    
+    async def get_node_info(self, node_id: str) -> Union[pb2.AgentInfo, pb2.ToolInfo, None]:
+        """ Retrieves the node info by its node id.
+
+        Args:
+            node_id (str): node id
+
+        Returns:
+            node_info (Union[pb2.AgentInfo, pb2.AgentInfo, None]): node info if the node ID is found; otherwise, None
+        """
+        node_info = self._registry.get(node_id)
+        if not node_info:
+            return
+
+        return node_info
+
+    async def get_node_stub(self, node_id: str) -> Union[AgentServiceStub, ToolServiceStub, GatewayServiceStub, None]:
+        """Check if the node is registered and return the stub.
+        
+        Args:
+            node_id (str): node id
+
+        Returns:
+            stub (Union[AgentServiceStub, ToolServiceStub, GatewayServiceStub, None]): stub if the node ID is found; otherwise, None
+        """
+        node_info = await self.get_node_info(node_id)
+        if not node_info:
+            return
+
+        stub = self._connection_pool.get_stub(node_info.address)
+        return stub
+    
+    # TODO: 需要考虑节点的注销，proto里面需要定义注销信息
+    async def deregister_node(self, node_id: str) -> None:
+        """Delete the node from the registry and close its connection.
+
+        Args:
+            node_id (str): node id
+        """
+        node_info = await self.get_node_info(node_id)
+        if not node_info:
+            print(f"<GW>: Try to remove Node {node_id} but not found in registry.")
+        else:
+            del self._registry[node_id]
+            await self._connection_pool.close_stub(node_info.address)
+            print(f"<GW>: Node {node_id} removed from registry and connection closed.")
 
     async def _handle_server_termination(self):
         try:
@@ -105,6 +138,7 @@ class GatewayService(GatewayServiceServicer):
                                 request_iterator: AsyncIterable[pb2.AgentMessage],
                                 context: grpc.aio.ServicerContext) -> AsyncIterable[pb2.AgentMessage]:
         """消息路由主入口"""
+        # TODO: 连续发送多包时，后面的包会被第一包阻塞吗？需要测试一下
         async for message in request_iterator:
             # route 响应流
             async for response in self._forward_agent_message(message):
@@ -146,7 +180,7 @@ class GatewayService(GatewayServiceServicer):
                        context: grpc.aio.ServicerContext) -> pb2.GetNodesResponse:
 
         print(f"<GW>: Agent {request.agent_id} request nodes info")
-        peers = await self._collect_node_peers()  # collect peers
+        peers = await self._collect_node_peers(request.domain)  # collect peers
 
         return pb2.GetNodesResponse(
             peers=peers
