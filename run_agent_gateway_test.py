@@ -1,10 +1,11 @@
 import uuid
 import asyncio
 
-from grpc_service.type import AgentMessage, AgentInfo, TaskInfo, AgentSkill, SessionStatus, TaskStatus, Mode
+from grpc_service.type import AgentMessage, AgentInfo, TaskInfo, AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
 from module.client import  AgentClient
 from module.server import AgentServer
 from module.host import GatewayHost
+from module import Gateway
 
 
 async def main():
@@ -14,7 +15,7 @@ async def main():
         content = message.content
         print(f"<{receiver_id}>: receive \"{content}\" from {sender_id} in session: {message.session_id}")
 
-        message.content = f"Response: {content}"
+        message.content = [ContentItem(text= f"Response:")]
         message.sender_id = receiver_id
         message.receiver_id = sender_id
         message.task_info.task_status = TaskStatus.FINISH
@@ -27,8 +28,8 @@ async def main():
         address="localhost:50051",
         name="example agent 1",
         domain="debug",
-        input_mode=Mode.TEXT,
-        output_mode=Mode.TEXT,
+        input_mode=[Mode.TEXT],
+        output_mode=[Mode.TEXT],
         description="Hello world",
         skills=[AgentSkill(skill_id="0", capability="send text")],
         version="0.1"
@@ -39,8 +40,8 @@ async def main():
             address="localhost:50052",
             name="example agent 2",
             domain="debug",
-            input_mode=Mode.TEXT,
-            output_mode=Mode.TEXT,
+            input_mode=[Mode.TEXT],
+            output_mode=[Mode.TEXT],
             description="Hello world",
             skills=[AgentSkill(skill_id="0", capability="send text")],
             version="0.1"
@@ -54,14 +55,19 @@ async def main():
     print('Init Agent Server 2 Done.')
 
 
-    # Gateway
-    local_gw = GatewayHost(address="localhost:50055", gateway_id="gw_local")
-    asyncio.create_task(local_gw.start())
-    await asyncio.sleep(1)
+    # Gateway start
+    local_gw = Gateway(address="localhost:50055", gateway_id="gw_local")
+    await local_gw.start()
 
     await example_agent_server_1.connect_to_gateway("localhost:50055")
     await example_agent_server_2.connect_to_gateway("localhost:50055")
     print('Connected to Gateway!')
+
+    # Test Gateway Registration
+    registered_agents = await local_gw.get_registered_agents()
+    print(f"Registered Agents: {registered_agents}")
+    registered_nodes = await local_gw.get_registered_nodes()
+    print(f"Registered Nodes: {registered_nodes}")
 
     async def process_response_func(message: AgentMessage):
         print(f"Received Response: {message.content}")
@@ -74,16 +80,15 @@ async def main():
         await example_agent_client.start("localhost:50055", GatewayServiceStub, "RouteAgentCalling")
         print('Init Agent Client Done.')
 
-        example_msg = AgentMessage(content="Hello World",
+        example_msg = AgentMessage(content=[ContentItem(text="Hello World")],
                                    sender_id="agent_1",
                                    receiver_id="agent_2",
                                    session_id="",
                                    session_status=SessionStatus.START_QUEST,
                                    task_info=TaskInfo(task_id='0', parent_task_ids=['0'], task_status=TaskStatus.CREATE),
-                                   content_mode=Mode.TEXT,
                                    message_id='m0',
                                    reply_to_message_id='m0')
-        await local_gw.deregister_node("agent_2")
+        # await local_gw.deregister_node("agent_2")
         await example_agent_client.send_message(example_msg)
 
         final_response = await example_agent_client.wait_completion()

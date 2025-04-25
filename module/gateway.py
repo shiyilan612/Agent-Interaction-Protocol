@@ -41,8 +41,7 @@ class Gateway:
         # Start the server
         await self._service.start()
         
-        # print(f"Gateway {self.gateway_id} started on {self.address}")
-        return self
+        print(f"Gateway {self.gateway_id} started on {self.address}")
     
     async def stop(self):
         """Stop the gateway server."""

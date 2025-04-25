@@ -44,7 +44,7 @@ class GatewayHost(GatewayService):
             receiver_info = await super().get_node_info(message.receiver_id)
             print(f"<GW>: Forwarding to Agent {message.receiver_id} (address: {receiver_info.address}) failed: {e.code()}")
             # delete failed node
-            super().deregister_node(message.receiver_id)
+            await super().deregister_node(message.receiver_id)
             return
 
     async def _forward_tool_request(self, request: pb2.ToolRequest) -> pb2.ToolResponse:
@@ -69,7 +69,7 @@ class GatewayHost(GatewayService):
             receiver_info = await super().get_node_info(request.receiver_id)
             print(f"<GW>: Forwarding to {receiver_info.address} failed: {e.code()}")
             # delete failed node
-            super().deregister_node(request.receiver_id)
+            await super().deregister_node(request.receiver_id)
             return
 
     async def get_agents_info(self) -> Dict[str, AgentInfo]:
