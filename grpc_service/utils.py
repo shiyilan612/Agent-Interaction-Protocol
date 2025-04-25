@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 16 15:00:00 2025
 
-@author: haixinwa
+@author: haixinwa & clleng
 """
 
 import grpc
@@ -27,6 +27,17 @@ class ConnectionPool:
             self._stubs[address] = stub_ptr(channel)
         except grpc.RpcError as e:
             print(f"Connection failed to {address}: {e.code()}")
+
+    async def close_stub(self, address: str):
+        """ close a connection for the input address"""
+        try:
+            channel = self._channels.get(address, None)
+            if channel:
+                await channel.close()
+                del self._channels[address]
+                del self._stubs[address]
+        except grpc.RpcError as e:
+            print(f"Failed to close connection to {address}: {e.code()}")
 
     def get_stub(self, address: str) -> Optional[Union[GatewayServiceStub, AgentServiceStub, ToolServiceStub]]:
         """get a stub for a specified address"""
