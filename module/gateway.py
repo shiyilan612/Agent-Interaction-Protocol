@@ -2,7 +2,7 @@
 """
 Created on Thu Apr 24 16:00:41 2025
 
-@author: xmkang
+@author: xmkang & clleng
 """
 
 import asyncio
@@ -10,7 +10,7 @@ import uuid
 from typing import Dict, List, Optional, Union
 
 from grpc_service.type import AgentInfo, ToolInfo
-from grpc_service import GatewayService
+from module.host import GatewayHost
 
 class Gateway:
     """
@@ -36,23 +36,38 @@ class Gateway:
         
     async def start(self):
         """Start the gateway server."""
-        self._service = GatewayService(self.address, self.gateway_id)
+        self._service = GatewayHost(self.address, self.gateway_id)
         
-        # Start the server in a background task
-        asyncio.create_task(self._service.start())
+        # Start the server
+        await self._service.start()
         
-        # Give it a moment to start up
-        await asyncio.sleep(1)
-        
-        print(f"Gateway {self.gateway_id} started on {self.address}")
+        # print(f"Gateway {self.gateway_id} started on {self.address}")
         return self
     
     async def stop(self):
         """Stop the gateway server."""
         if self._service:
             await self._service.stop()
+
+    async def connect_to_gateway(self, gateway_address: str):
+        """Connect to another gateway.
+        
+        Args:
+            gateway_address: Address of the gateway to connect to
+        """
+        # TODO: 为网关互联预留
+        pass
+
+    async def get_route_log(self) -> List[str]:
+        """
+        Get the route log of the gateway.
+        
+        Returns:
+            List of route logs
+        """
+        pass
     
-    def get_registered_nodes(self) -> Dict[str, Union[AgentInfo, ToolInfo]]:
+    async def get_registered_nodes(self) -> Dict[str, Union[AgentInfo, ToolInfo]]:
         """
         Get all registered nodes (agents and tools).
         
@@ -64,7 +79,7 @@ class Gateway:
         
         return self._service._registry
     
-    def get_agents(self) -> Dict[str, AgentInfo]:
+    async def get_registered_agents(self) -> Dict[str, AgentInfo]:
         """
         Get all registered agents.
         
@@ -74,10 +89,10 @@ class Gateway:
         if not self._service:
             return {}
         
-        return {node_id: info for node_id, info in self._service._registry.items() 
-                if hasattr(info, 'agent_id')}
+        agents_info = await self._service.get_agents_info()
+        return agents_info
     
-    def get_tools(self) -> Dict[str, ToolInfo]:
+    async def get_registered_tools(self) -> Dict[str, ToolInfo]:
         """
         Get all registered tools.
         
@@ -87,5 +102,5 @@ class Gateway:
         if not self._service:
             return {}
         
-        return {node_id: info for node_id, info in self._service._registry.items() 
-                if hasattr(info, 'tool_id')}
+        tools_info = await self._service.get_tools_info()
+        return tools_info

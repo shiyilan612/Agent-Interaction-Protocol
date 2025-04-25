@@ -71,3 +71,23 @@ class GatewayHost(GatewayService):
             # delete failed node
             super().deregister_node(request.receiver_id)
             return
+
+    async def get_agents_info(self) -> Dict[str, AgentInfo]:
+        """
+        Get all registered agents.
+
+        Returns:
+            Dict[str, AgentInfo]: Dictionary of agent_id -> AgentInfo
+        """
+        agent_dict = {node_id: info for node_id, info in self._registry.items() if isinstance(info, pb2.AgentInfo)}
+        return agent_dict
+    
+    async def get_tools_info(self) -> Dict[str, AgentInfo]:
+        """
+        Get all registered tools.
+
+        Returns:
+            Dict[str, AgentInfo]: Dictionary of tool_id -> ToolInfo
+        """
+        tool_dict = {node_id: info for node_id, info in self._registry.items() if isinstance(info, pb2.ToolInfo)}
+        return tool_dict
