@@ -9,6 +9,7 @@ Created on Wed Apr 16 15:00:00 2025
 
 import grpc
 import uuid
+import asyncio
 from typing import Dict, Union, AsyncIterable
 from .utils import ConnectionPool
 
@@ -92,6 +93,14 @@ class GatewayService(GatewayServiceServicer):
 
         return peers
 
+    async def _handle_server_termination(self):
+        try:
+            await self._server.wait_for_termination()
+        except Exception as e:
+            print(f"Error during server termination: {e}")
+        finally:
+            await self._server.stop(1)
+
     async def RouteAgentCalling(self,
                                 request_iterator: AsyncIterable[pb2.AgentMessage],
                                 context: grpc.aio.ServicerContext) -> AsyncIterable[pb2.AgentMessage]:
@@ -149,13 +158,9 @@ class GatewayService(GatewayServiceServicer):
         self._server.add_insecure_port(self.address)
         await self._server.start()
         print(f"<{self.gateway_id}>: Gateway {self.gateway_id} started on {self.address}")
+        asyncio.create_task(self._handle_server_termination())
 
-        # Wait for termination
-        try:
-            await self._server.wait_for_termination()
-        finally:
-            #  Ensure proper server shutdown
-            await self._server.stop(1)  # 1 second timeout
+        return self
 
     async def stop(self) -> None:
         """Stop the Agent service gRPC server."""

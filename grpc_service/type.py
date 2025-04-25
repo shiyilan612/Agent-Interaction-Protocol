@@ -27,17 +27,15 @@ class Mode(Enum):
     TEXT = 0
     IMAGE = 1
     AUDIO = 2
-    VIDEO = 3
-    NONE = 4
+    EMBEDDED = 3
 
 
 class SessionStatus(Enum):
     START_QUEST = 0
-    START_RESPONSE = 1
-    HOLD_QUEST = 2
-    HOLD_RESPONSE = 3
-    STOP_QUEST = 4
-    STOP_RESPONSE = 5
+    HOLD_QUEST = 1
+    HOLD_RESPONSE = 2
+    STOP_QUEST = 3
+    STOP_RESPONSE = 4
 
 
 class TaskStatus(Enum):
@@ -90,6 +88,42 @@ class TaskInfo:
         )
 
 
+class ContentItem:
+    def __init__(self):
+        self._text: Optional[str] = None
+        self._image: Optional[bytes] = None
+        self._audio: Optional[bytes] = None
+        self._embedded: Optional[bytes] = None
+
+    def to_grpc(self) -> pb2.ContentItem:
+        grpc_item = pb2.ContentItem()
+        if self._text is not None:
+            grpc_item.text = self._text
+        elif self._image is not None:
+            grpc_item.image = self._image
+        elif self._audio is not None:
+            grpc_item.audio = self._audio
+        elif self._embedded is not None:
+            grpc_item.embedded = self._embedded
+
+        return grpc_item
+
+    @classmethod
+    def from_grpc(cls, grpc_item: pb2.ContentItem) -> 'ContentItem':
+        item = cls()
+        which = grpc_item.WhichOneof("data")
+        if which == "text":
+            item._text = grpc_item.text
+        elif which == "image":
+            item._image = grpc_item.image
+        elif which == "audio":
+            item._audio = grpc_item.audio
+        elif which == "embedded":
+            item._embedded = grpc_item.embedded
+
+        return item
+
+
 class Peer:
     def __init__(self):
         self._agent_info: Optional[AgentInfo] = None
@@ -116,7 +150,7 @@ class Peer:
 
 class AgentInfo:
     def __init__(self, agent_id: str, address: str, name: str, domain: str,
-                 input_mode: Mode, output_mode: Mode, description: str,
+                 input_mode: List[Mode], output_mode: List[Mode], description: str,
                  skills: List[AgentSkill], version: str):
         self.agent_id = agent_id
         self.address = address
@@ -134,8 +168,8 @@ class AgentInfo:
             address=self.address,
             name=self.name,
             domain=self.domain,
-            input_mode=convert_enum(self.input_mode, pb2.Mode),
-            output_mode=convert_enum(self.output_mode, pb2.Mode),
+            input_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.input_mode],
+            output_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.output_mode],
             description=self.description,
             skills=[s.to_grpc() for s in self.skills],
             version=self.version
@@ -149,8 +183,8 @@ class AgentInfo:
             address=grpc_obj.address,
             name=grpc_obj.name,
             domain=grpc_obj.domain,
-            input_mode=restore_enum(grpc_obj.input_mode, Mode),
-            output_mode=restore_enum(grpc_obj.output_mode, Mode),
+            input_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
+            output_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
             description=grpc_obj.description,
             skills=[AgentSkill.from_grpc(s) for s in grpc_obj.skills],
             version=grpc_obj.version
@@ -182,7 +216,7 @@ class RegisterAgentResponse:
 
 class ToolInfo:
     def __init__(self, tool_id: str, address: str, name: str, domain: str,
-                 input_mode: Mode, output_mode: Mode, description: str,
+                 input_mode: List[Mode], output_mode: List[Mode], description: str,
                  arguments: Dict[str, str], version: str):
         self.tool_id = tool_id
         self.address = address
@@ -200,8 +234,8 @@ class ToolInfo:
             address=self.address,
             name=self.name,
             domain=self.domain,
-            input_mode=convert_enum(self.input_mode, pb2.Mode),
-            output_mode=convert_enum(self.output_mode, pb2.Mode),
+            input_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.input_mode],
+            output_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.output_mode],
             description=self.description,
             arguments=self.arguments,
             version=self.version
@@ -214,8 +248,8 @@ class ToolInfo:
             address=grpc_obj.address,
             name=grpc_obj.name,
             domain=grpc_obj.domain,
-            input_mode=restore_enum(grpc_obj.input_mode, Mode),
-            output_mode=restore_enum(grpc_obj.output_mode, Mode),
+            input_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
+            output_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
             description=grpc_obj.description,
             arguments=dict(grpc_obj.arguments),
             version=grpc_obj.version
@@ -276,17 +310,16 @@ class GetNodesResponse:
 class AgentMessage:
     def __init__(self, sender_id: str, receiver_id: str, session_id: str,
                  session_status: SessionStatus, task_info: TaskInfo,
-                 content: Union[str, bytes], content_mode: Mode,
-                 message_id: str, reply_to_message_id: str):
+                 message_id: str, reply_to_message_id: str,
+                 content: List[ContentItem]):
         self.sender_id = sender_id
         self.receiver_id = receiver_id
         self.session_id = session_id
         self.session_status = session_status
         self.task_info = task_info
-        self.content = content
-        self.content_mode = content_mode
         self.message_id = message_id
         self.reply_to_message_id = reply_to_message_id
+        self.content = content
 
     def to_grpc(self) -> pb2.AgentMessage:
         grpc_obj = pb2.AgentMessage(
@@ -295,30 +328,24 @@ class AgentMessage:
             session_id=self.session_id,
             session_status=convert_enum(self.session_status, pb2.AgentMessage.SessionStatus),
             task_info=self.task_info.to_grpc(),
-            content_mode=convert_enum(self.content_mode, pb2.Mode),
             message_id=self.message_id,
-            reply_to_message_id=self.reply_to_message_id
+            reply_to_message_id=self.reply_to_message_id,
+            content=[item.to_grpc() for item in self.content]
         )
-        if isinstance(self.content, str):
-            grpc_obj.text = self.content
-        elif isinstance(self.content, bytes):
-            grpc_obj.binary = self.content
 
         return grpc_obj
 
     @classmethod
     def from_grpc(cls, grpc_obj: pb2.AgentMessage) -> 'AgentMessage':
-        content = grpc_obj.text if grpc_obj.HasField("text") else grpc_obj.binary
         return cls(
             sender_id=grpc_obj.sender_id,
             receiver_id=grpc_obj.receiver_id,
             session_id=grpc_obj.session_id,
             session_status=restore_enum(grpc_obj.session_status, SessionStatus),
             task_info=TaskInfo.from_grpc(grpc_obj.task_info),
-            content=content,
-            content_mode=restore_enum(grpc_obj.content_mode, Mode),
             message_id=grpc_obj.message_id,
-            reply_to_message_id=grpc_obj.reply_to_message_id
+            reply_to_message_id=grpc_obj.reply_to_message_id,
+            content=[ContentItem.from_grpc(item) for item in grpc_obj.content]
         )
 
 
@@ -355,47 +382,33 @@ class ToolRequest:
 
 class ToolResponse:
     def __init__(self, sender_id: str, receiver_id: str, session_id: str,
-                 success: bool, content: Union[str, bytes, bytes, bytes],
-                 error_message: str = ""):
+                 is_error: bool, error_message: str, content: List[ContentItem]):
         self.sender_id = sender_id
         self.receiver_id = receiver_id
         self.session_id = session_id
-        self.success = success
-        self.content = content
+        self.is_error = is_error
         self.error_message = error_message
+        self.content = content
 
     def to_grpc(self) -> pb2.ToolResponse:
         grpc_obj = pb2.ToolResponse(
             sender_id=self.sender_id,
             receiver_id=self.receiver_id,
             session_id=self.session_id,
-            success=self.success,
-            error_message=self.error_message
+            is_error=self.is_error,
+            error_message=self.error_message,
+            content=[item.to_grpc() for item in self.content]
         )
-        if isinstance(self.content, str):
-            grpc_obj.text = self.content
-        elif isinstance(self.content, bytes):
-            content_type = "image"
-            getattr(grpc_obj, content_type).value = self.content
 
         return grpc_obj
 
     @classmethod
     def from_grpc(cls, grpc_obj: pb2.ToolResponse) -> 'ToolResponse':
-        content = ""
-        if grpc_obj.HasField("text"):
-            content = grpc_obj.text
-        elif grpc_obj.HasField("image"):
-            content = grpc_obj.image
-        elif grpc_obj.HasField("audio"):
-            content = grpc_obj.audio
-        elif grpc_obj.HasField("embedded"):
-            content = grpc_obj.embedded
         return cls(
             sender_id=grpc_obj.sender_id,
             receiver_id=grpc_obj.receiver_id,
             session_id=grpc_obj.session_id,
-            success=grpc_obj.success,
-            content=content,
-            error_message=grpc_obj.error_message
+            is_error=grpc_obj.is_error,
+            error_message=grpc_obj.error_message,
+            content=[ContentItem.from_grpc(item) for item in grpc_obj.content]
         )

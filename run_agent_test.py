@@ -1,7 +1,7 @@
 import uuid
 import asyncio
 
-from grpc_service.type import AgentMessage, AgentInfo, TaskInfo, AgentSkill, SessionStatus, TaskStatus, Mode
+from grpc_service.type import AgentMessage, AgentInfo, TaskInfo, AgentSkill, ContentItem, SessionStatus, TaskStatus, Mode
 from module.client import  AgentClient
 from module.server import AgentServer
 
@@ -13,7 +13,9 @@ async def main():
         content = message.content
         print(f"<{receiver_id}>: receive \"{content}\" from {sender_id} in session: {message.session_id}")
 
-        message.content = f"Response: {content}"
+        citem = ContentItem()
+        citem._text = "Response"
+        message.content = [citem]
         message.sender_id = receiver_id
         message.receiver_id = sender_id
         message.task_info.task_status = TaskStatus.FINISH
@@ -26,8 +28,8 @@ async def main():
         address="localhost:50051",
         name="example agent",
         domain="debug",
-        input_mode=Mode.TEXT,
-        output_mode=Mode.TEXT,
+        input_mode=[Mode.TEXT],
+        output_mode=[Mode.TEXT],
         description="Hello world",
         skills=[AgentSkill(skill_id="0", capability="send text")],
         version="0.1"
@@ -47,15 +49,16 @@ async def main():
         await example_agent_client.start("localhost:50051", AgentServiceStub, "CallAgent")
         print('Init Agent Client Done.')
 
-        example_msg = AgentMessage(content="Hello World",
-                                   sender_id="agent1",
+        citem = ContentItem()
+        citem._text = "Hello World"
+        example_msg = AgentMessage(sender_id="agent1",
                                    receiver_id="agent1",
                                    session_id="",
                                    session_status=SessionStatus.START_QUEST,
                                    task_info=TaskInfo(task_id='0', parent_task_ids=['0'], task_status=TaskStatus.CREATE),
-                                   content_mode=Mode.TEXT,
                                    message_id='m0',
-                                   reply_to_message_id='m0')
+                                   reply_to_message_id='m0',
+                                   content=[citem])
         await example_agent_client.send_message(example_msg)
 
         final_response = await example_agent_client.wait_completion()

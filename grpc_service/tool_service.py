@@ -71,7 +71,7 @@ class ToolService(ToolServiceServicer):
         """
         pass
             
-    async def start(self) -> None:
+    async def start(self):
         """
         Start the tool service gRPC server.
         
