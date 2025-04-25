@@ -133,8 +133,8 @@ class Peer:
         grpc_peer = pb2.Peer()
         if self._agent_info is not None:
             grpc_peer.agent_info.CopyFrom(self._agent_info.to_grpc())
-        elif self._agent_info is not None:
-            grpc_peer.tool_info.CopyFrom(self._agent_info.to_grpc())
+        elif self._tool_info is not None:
+            grpc_peer.tool_info.CopyFrom(self._tool_info.to_grpc())
         return grpc_peer
 
     @classmethod
