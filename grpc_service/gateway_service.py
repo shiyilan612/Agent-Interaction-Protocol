@@ -138,6 +138,7 @@ class GatewayService(GatewayServiceServicer):
                                 request_iterator: AsyncIterable[pb2.AgentMessage],
                                 context: grpc.aio.ServicerContext) -> AsyncIterable[pb2.AgentMessage]:
         """消息路由主入口"""
+        # TODO: 连续发送多包时，后面的包会被第一包阻塞吗？需要测试一下
         async for message in request_iterator:
             # route 响应流
             async for response in self._forward_agent_message(message):
