@@ -89,11 +89,12 @@ class TaskInfo:
 
 
 class ContentItem:
-    def __init__(self):
-        self._text: Optional[str] = None
-        self._image: Optional[bytes] = None
-        self._audio: Optional[bytes] = None
-        self._embedded: Optional[bytes] = None
+    def __init__(self, text: Optional[str] = None, image: Optional[bytes] = None,
+        audio: Optional[bytes] = None, embedded: Optional[bytes] = None):
+        self._text: Optional[str] = text
+        self._image: Optional[bytes] = image
+        self._audio: Optional[bytes] = audio
+        self._embedded: Optional[bytes] = embedded
 
     def to_grpc(self) -> pb2.ContentItem:
         grpc_item = pb2.ContentItem()
