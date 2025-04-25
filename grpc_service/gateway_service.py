@@ -22,9 +22,9 @@ from . import schema_pb2 as pb2
 class GatewayService(GatewayServiceServicer):
     def __init__(self, 
                  address: str,
-                 gw_id: str = None):
+                 gateway_id: str = None):
         self.address = address
-        self.gw_id = gw_id if gw_id else f"gateway_{str(uuid.uuid4())}"
+        self.gateway_id = gateway_id if gateway_id else f"gateway_{str(uuid.uuid4())}"
 
         # init registry dict
         self._registry: Dict[str, Union[pb2.AgentInfo, pb2.ToolInfo]] = {}
@@ -83,7 +83,12 @@ class GatewayService(GatewayServiceServicer):
         peers = list()
         for info in list(self._registry.values()):
             peer = pb2.Peer()
-            peer.agent_info.CopyFrom(info)
+            if isinstance(info, pb2.AgentInfo):
+                peer.agent_info.CopyFrom(info)
+            elif isinstance(info, pb2.ToolInfo):
+                peer.tool_info.CopyFrom(info)
+            else:
+                raise ValueError(f"Unknown node type: {type(info)}")
             peers.append(peer)
 
         return peers
@@ -152,7 +157,7 @@ class GatewayService(GatewayServiceServicer):
         add_GatewayServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        print(f"<{self.gw_id}>: Gateway {self.gw_id} started on {self.address}")
+        print(f"<{self.gateway_id}>: Gateway {self.gateway_id} started on {self.address}")
         asyncio.create_task(self._handle_server_termination())
 
         return self

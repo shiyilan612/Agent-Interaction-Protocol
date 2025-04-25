@@ -94,6 +94,11 @@ class AgentServerSession:
     """A single session instance on the server side"""
 
     def __init__(self, session_id: str, process_request_func: Callable):
+        """
+        Args:
+            session_id (str): The session ID.
+            process_request_func (Callable): The function to process requests.
+        """
         self.session_id = session_id
         self.process_request_func = process_request_func
         self.request_queue = asyncio.Queue()
@@ -153,6 +158,14 @@ class AgentServerSessionManager:
         self._lock = asyncio.Lock()
 
     async def create_or_get_session(self, session_id: str, process_request_func: Callable) -> AgentServerSession:
+        """
+        Create a new session or return an existing one.
+        Args:
+            session_id (str): The session ID.
+            process_request_func (Callable): The function to process requests.
+        Returns:
+            AgentServerSession: The session object.
+        """
         async with self._lock:
             if session := self.active_sessions.get(session_id):
                 return session
@@ -163,6 +176,11 @@ class AgentServerSessionManager:
             return new_session
 
     async def close_session(self, session_id: str):
+        """
+        Close a session by its ID.
+        Args:
+            session_id (str): The session ID.
+        """
         async with self._lock:
             if session := self.active_sessions.pop(session_id, None):
                 await session.close()
