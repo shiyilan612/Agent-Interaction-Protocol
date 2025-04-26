@@ -229,49 +229,46 @@ class Agent:
         content_items = list()
         if content_mode is None: #All content share one Mode
             for c in content:
-                citem = ContentItem()
                 if isinstance(c, str):
-                    citem._text = c
+                    citem = ContentItem.write_text(c)
                 else:
-                    citem._embedded = c
+                    citem = ContentItem.write_embedded(c)
                 content_items.append(citem)
         elif len(content_mode) == 1: #All content share one Mode
             m = content_mode[0]
             if m == Mode.TEXT:
                 for c in content:
                     assert isinstance(c, str), "Mode and content is not match"
-                    citem = ContentItem()
-                    citem._text = c
+                    citem = ContentItem.write_text(c)
                     content_items.append(citem)
             else:
                 for c in content:
                     if isinstance(c, str):
-                        citem._text = c
+                        citem = ContentItem.write_text(c)
                     else:
                         if m == Mode.IMAGE:
-                            citem._image = c
+                            citem = ContentItem.write_image(c)
                         elif m == Mode.AUDIO:
-                            citem._audio = c
+                            citem = ContentItem.write_audio(c)
                         elif m == Mode.EMBEDDED:
-                            citem._embedded = c
+                            citem = ContentItem.write_embedded(c)
                         else:
                             raise("Illegal Mode definition")
                     content_items.append(citem)
         else:
             assert len(content) == len(content_mode), "Content and Mode is not one-to-one"
             for c, m in zip(content, content_mode):
-                citem = ContentItem()
                 if m == Mode.TEXT:
                     assert isinstance(c, str), "Mode of string content must be Mode.TEXT"
-                    citem._text = c
+                    citem= ContentItem.write_text(c)
                 else:
                     assert isinstance(c, bytes), "Content with Mode of No-TEXT mush be bytes"
                     if m == Mode.IMAGE:
-                        citem._image = c
+                        citem = ContentItem.write_image(c)
                     elif m == Mode.AUDIO:
-                        citem._audio = c
+                        citem = ContentItem.write_audio(c)
                     elif m == Mode.EMBEDDED:
-                        citem._embedded = c
+                        citem = ContentItem.write_embedded(c)
                     else:
                         raise("Illegal Mode definition")
                 content_items.append(citem)
@@ -398,7 +395,7 @@ class Agent:
                            receiver_id: str, 
                            session_id: str = None,
                            tool_name: str = None,
-                           arguments: Dict[str, str] = None) -> ToolRequest:
+                           arguments: Dict[str, Any] = None) -> ToolRequest:
         """
         Create an AgentMessage object.
         
@@ -411,6 +408,9 @@ class Agent:
         Returns:
             ToolRequest object
         """
+
+        #Ensure all key-value in arguments is string
+        arguments = {str(k): str(v if v is not None else "N/A") for k, v in arguments.items()}
             
         # Create the requst
         request = ToolRequest(
@@ -429,7 +429,7 @@ class Agent:
                         tool_id: str, 
                         session_id: str = None,
                         tool_name: str = None,
-                        arguments: Dict[str, str] = None) -> ToolResponse:
+                        arguments: Dict[str, Any] = None) -> ToolResponse:
         """
         Call a tool with the given ID through gateway.
         

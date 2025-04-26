@@ -21,8 +21,8 @@ async def assistant_request_handler(message: AgentMessage) -> AgentMessage:
     
     # Process the request and generate a response
     response_content = f"I've processed your request: '{txt}'"
-    citem = ContentItem()
-    citem._text = response_content
+    citem = ContentItem.write_text(response_content)
+    #citem._text = response_content
     m = AgentMessage(
         sender_id=message.receiver_id,
         receiver_id=message.sender_id,
@@ -111,7 +111,7 @@ async def main():
     response = await user.call_tool(
         tool_id="tool1",
         tool_name="Sum",
-        arguments={"a":"5", "b":"3"},
+        arguments={"a":10, "b":20},
     )
     print(f"Tool response: {response.content[0]._text}")
           

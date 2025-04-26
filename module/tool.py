@@ -117,15 +117,14 @@ class Tool:
             if self._executor is not None:
                 # Function-based tool
                 result = await self._execute_custom_func(request.arguments)
-                citem = ContentItem()
-                citem._text = str(result)
+                citem = ContentItem.write_text(str(result))
                 response = ToolResponse(
                     sender_id=self.tool_id,
                     receiver_id=request.sender_id,
                     session_id=request.session_id,
                     content = [citem],
                     is_error = False,
-                    error_message = "OK"
+                    error_message = "No Error"
                 )
 
             # elif self._api_config is not None:
@@ -206,7 +205,7 @@ class Tool:
                             version: str = "1.0.0",
                             input_mode: List[Mode] = [Mode.TEXT],
                             output_mode: List[Mode] = [Mode.TEXT],
-                            arguments: Dict[str, str] = None) -> 'Tool':
+                            arguments: Dict[str, Any] = None) -> 'Tool':
         """
         Create a Tool from a Python function.
 
@@ -270,19 +269,20 @@ class Tool:
         return tool
 
             
-    async def invoke_direct(self, arguments: Dict[str, str] = None) -> ToolResponse:
+    async def invoke_direct(self, arguments: Dict[str, Any] = None) -> ToolResponse:
         """
         invoke this tool directly without gateway
         """
-        if not arguments:
-            arguments = {}
+              #Ensure all key-value in arguments is string
+        arguments = {str(k): str(v if v is not None else "N/A") for k, v in arguments.items()}
 
-        # create a direct request
+        # Create the requst
         request = ToolRequest(
             sender_id="direct_caller",
             receiver_id=self.tool_id,
-            tool_name=self.name,
-            arguments=arguments
+            session_id=f"session_{uuid.uuid4().hex[:8]}",
+            tool_name=self.name or "unknown",
+            arguments=arguments or {}
         )
 
         return await self._default_process_request_handler(request)
