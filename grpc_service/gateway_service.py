@@ -198,9 +198,9 @@ class GatewayService(GatewayServiceServicer):
         return self
 
     async def stop(self) -> None:
-        """Stop the Agent service gRPC server."""
+        """Stop the Gateway service gRPC server."""
         if self._server:
             await self._server.stop(grace=None)
-            print(f"Agent service at {self.address} stopped")
+            print(f"Gateway service at {self.address} stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
