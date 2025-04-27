@@ -8,15 +8,16 @@ import grpc
 from typing import Dict, AsyncIterable
 
 from grpc_service import GatewayService
-from grpc_service.type import AgentInfo, ToolInfo
+from grpc_service.type import AgentInfo, ToolInfo, AgentMessage, SessionStatus
 from grpc_service import schema_pb2 as pb2
-
+from session import GatewaySessionMagager
 
 class GatewayHost(GatewayService):
     def __init__(self,
                  address: str,
                  gateway_id: str = None):
         super().__init__(address=address, gateway_id=gateway_id)
+        self.session_mgr = GatewaySessionMagager()
         
     async def _forward_agent_message(self, message: pb2.AgentMessage) -> AsyncIterable[pb2.AgentMessage]:
         """Route agent message to the receiver.
@@ -26,19 +27,27 @@ class GatewayHost(GatewayService):
         Returns:
             AsyncIterable[pb2.AgentMessage]: The response from the receiver.
         """
+        message = AgentMessage.from_grpc(message)
         stub = await super().get_node_stub(message.receiver_id)
         if not stub:
             print(f"<GW>: Routing failed: Receiver {message.receiver_id} not found")
             return
 
         try:
-            # use the stub to call the remote method and route the message by stream
-            stream = stub.CallAgent()
-            await stream.write(message)
+            # route the message to the receiver by session
+            session = await self.session_mgr.create_or_get_session(stub, message.session_id)
+            await session.send(message.to_grpc())
 
-            # yield the responses from the stream
-            async for response in stream:
-                yield response
+            # yield the responses from the session
+            async for response in session.get_response():
+                response = AgentMessage.from_grpc(response)
+
+                if response.session_status == SessionStatus.STOP_RESPONSE:
+                    # close the session if the response is STOP_RESPONSE
+                    await self.session_mgr.close_session(message.session_id)
+                    print(f"<GW>: Session {message.session_id} closed")
+
+                yield response.to_grpc()
 
         except grpc.RpcError as e:
             receiver_info = await super().get_node_info(message.receiver_id)
