@@ -6,12 +6,20 @@ Created on Sun Apr 27 16:25:37 2025
 """
 
 import asyncio
-from typing import Dict
+from typing import Dict, Union
 from grpc_service import AgentServiceStub, GatewayServiceStub
 
 class GatewaySession:
     """A Gateway session to manage one stream for communication between Agents"""
     def __init__(self, session_id: str=None, stream_stream_call=None, timeout=1e9):
+        """
+        Initialize a new Gateway route session.
+
+        Args:
+            session_id (str): The session ID.
+            stream_stream_call: The gRPC stream call object.
+            timeout (float): Timeout for the session.
+        """
         self.session_id = session_id
         self.stream_stream_call = stream_stream_call
         self.timeout = timeout
@@ -33,18 +41,24 @@ class GatewaySessionMagager:
         self.route_sessions: Dict[str, GatewaySession] = {}
         self._lock = asyncio.Lock()
 
-    async def create_or_get_session(self, stub: AgentServiceStub, session_id: str) -> GatewaySession:
+    async def create_or_get_session(self,
+                                    session_id: str,
+                                    stub: Union[AgentServiceStub, GatewayServiceStub],
+                                    callable_func: str="CallAgent") -> GatewaySession:
         """
         Create a new route session or return an existing one.
         Args:
             session_id (str): The original session ID.
+            stub (Union[AgentServiceStub, GatewayServiceStub]): The gRPC stub for the session.
+            callable_func (str): The function to call on the stub.
         Returns:
             GatewaySession: The session object.
         """
         async with self._lock:
             if session := self.route_sessions.get(session_id):
                 return session
-            new_session = GatewaySession(session_id=session_id, stream_stream_call=stub.CallAgent())
+            stream_stream_call = getattr(stub, callable_func)()
+            new_session = GatewaySession(session_id=session_id, stream_stream_call=stream_stream_call)
             self.route_sessions[session_id] = new_session
 
             return new_session

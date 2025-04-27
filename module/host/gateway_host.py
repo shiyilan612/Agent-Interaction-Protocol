@@ -35,7 +35,8 @@ class GatewayHost(GatewayService):
 
         try:
             # route the message to the receiver by session
-            session = await self.session_mgr.create_or_get_session(stub, message.session_id)
+            session = await self.session_mgr.create_or_get_session(session_id=message.session_id,
+                                                                stub=stub, callable_func="CallAgent")
             await session.send(message.to_grpc())
 
             # yield the responses from the session
