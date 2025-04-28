@@ -21,7 +21,9 @@ from . import schema_pb2 as pb2
 class AgentService(AgentServiceServicer):
     """Base AgentService class for handling messages and registration with gateway."""
     
-    def __init__(self, agent_info: pb2.AgentInfo):
+    def __init__(self, 
+                 agent_info: pb2.AgentInfo,
+                 heartbeat_interval: int = 10):
         """
         Initialize a new Agent instance.
         
@@ -36,6 +38,7 @@ class AgentService(AgentServiceServicer):
                 description (str): Description of the agent.
                 skills (List[schema_pb2.AgentInfo.AgentSkill]): List of skills for the agent.
                 version (str): Version of the agent.
+            heartbeat_interval: Interval in seconds between heartbeats
         """
         #creat agent info
         self.agent_info = agent_info
@@ -53,6 +56,10 @@ class AgentService(AgentServiceServicer):
 
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool()
+        
+        # Heartbeat
+        self._heartbeat_task = None
+        self.heartbeat_interval = heartbeat_interval
 
     async def _update_peers(self, new_peers):
         """
@@ -94,6 +101,34 @@ class AgentService(AgentServiceServicer):
             processed_msg (AsyncIterable[schema_pb2.AgentMessage]): Processed agent messages to be sent back.
         """
         pass
+    
+    
+    async def _send_heartbeat(self):
+        """Send periodic heartbeats to the gateway."""
+        if not self._gateway_address:
+            return
+        stub = self._connection_pool.get_stub(self._gateway_address)
+        
+        while True:
+            try:
+                # Create heartbeat request
+                request = pb2.HeartbeatRequest(sender_id=self.agent_id)
+                # Send heartbeat
+                response = await stub.Heartbeat(request)
+                if not response.success:
+                    print(f"<{self.agent_id}>: Heartbeat failed: {response.message}")
+                else:
+                    print(f"<{self.agent_id}>: Heartbeat sent successfully")
+                    
+                # Wait for the next interval
+                await asyncio.sleep(self.heartbeat_interval)
+                
+            except grpc.aio.AioRpcError as e:
+                print(f"<{self.agent_id}>: Heartbeat RPC error: {e.details()}")
+                await asyncio.sleep(self.heartbeat_interval)
+            except Exception as e:
+                print(f"<{self.agent_id}>: Heartbeat error: {str(e)}")
+                await asyncio.sleep(self.heartbeat_interval)
 
     async def start(self):
         """
@@ -113,8 +148,16 @@ class AgentService(AgentServiceServicer):
 
     async def stop(self) -> None:
         """Stop the Agent service gRPC server."""
+        # Cancel heartbeat task
+        if self._heartbeat_task and not self._heartbeat_task.done():
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        
         if self._server:
-            await self._server.stop(grace=None)
+            await self._server.stop(grace=10.0)
             print(f"Agent service at {self.address} stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
@@ -136,6 +179,9 @@ class AgentService(AgentServiceServicer):
             await self._update_peers(response.peers) # update peers
 
             print(f"<{self.agent_id}>: RegisterResponse from GW ({gateway_address})")
+            
+            # Start heartbeat task after successful registration
+            self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
 
         except grpc.aio.AioRpcError as e:
             print(f"RPC Error: {e.details()}")

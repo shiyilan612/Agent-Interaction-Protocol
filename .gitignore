@@ -1,0 +1,4 @@
+**/__pycache__/
+grpc_service/schema_pb2_grpc.py
+grpc_service/schema_pb2.py
+

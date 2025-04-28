@@ -129,6 +129,20 @@ message ToolResponse {
   repeated ContentItem content = 6;
 }
 
+
+
+/* 心跳监测 */
+message HeartbeatRequest {
+  string sender_id = 1;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+
+
 /*  Agent服务定义 */
 service AgentService {
   // Agent之间双向流式通信接口
@@ -141,6 +155,7 @@ service ToolService {
   // Tool调用
   rpc CallTool(ToolRequest) returns (ToolResponse) {};
 }
+
 
 
 /*  网关服务定义 */
@@ -159,5 +174,9 @@ service GatewayService {
 
   // Agent获取节点清单
   rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
+  
+  // Agent和Tool心跳监测
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse) {};
+  
 
 }
