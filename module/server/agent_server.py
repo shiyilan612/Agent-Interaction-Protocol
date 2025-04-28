@@ -49,7 +49,7 @@ class AgentServer(AgentService):
         async def receive_requests():
             await session.put_request(first_message)
             async for request in request_iterator:
-                await session.put_request(request)
+                await session.put_request(AgentMessage.from_grpc(request))
 
         receive_task = asyncio.create_task(receive_requests())
 

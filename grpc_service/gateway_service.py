@@ -138,11 +138,12 @@ class GatewayService(GatewayServiceServicer):
                                 request_iterator: AsyncIterable[pb2.AgentMessage],
                                 context: grpc.aio.ServicerContext) -> AsyncIterable[pb2.AgentMessage]:
         """消息路由主入口"""
-        # TODO: 连续发送多包时，后面的包会被第一包阻塞吗？需要测试一下
         async for message in request_iterator:
             # route 响应流
             async for response in self._forward_agent_message(message):
                 yield response
+                # TODO: 这里目前只返回一个包
+                break
 
     async def RouteToolCalling(self,
                                request: pb2.ToolRequest,
@@ -197,9 +198,9 @@ class GatewayService(GatewayServiceServicer):
         return self
 
     async def stop(self) -> None:
-        """Stop the Agent service gRPC server."""
+        """Stop the Gateway service gRPC server."""
         if self._server:
             await self._server.stop(grace=None)
-            print(f"Agent service at {self.address} stopped")
+            print(f"Gateway service at {self.address} stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()

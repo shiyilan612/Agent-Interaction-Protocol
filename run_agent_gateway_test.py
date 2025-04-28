@@ -13,13 +13,19 @@ async def main():
         receiver_id = message.receiver_id
         sender_id = message.sender_id
         content = message.content
-        print(f"<{receiver_id}>: receive \"{content}\" from {sender_id} in session: {message.session_id}")
+        status = message.session_status
+        print(f"<{receiver_id}>: receive \"{content[0]._text}\" from {sender_id} in session: {message.session_id}")
 
-        message.content = [ContentItem(text= f"Response:")]
+        message.content = [ContentItem(text= f"Response to message [{content[0]._text}]")]
         message.sender_id = receiver_id
         message.receiver_id = sender_id
-        message.task_info.task_status = TaskStatus.FINISH
-        message.session_status = SessionStatus.STOP_RESPONSE
+        message.task_info.task_status = TaskStatus.EXECUTING
+        message.session_status = SessionStatus.HOLD_QUEST
+        if status == SessionStatus.STOP_QUEST:
+            message.session_status = SessionStatus.STOP_RESPONSE
+            message.task_info.task_status = TaskStatus.FINISH
+
+        await asyncio.sleep(1)
 
         return message
 
@@ -64,13 +70,13 @@ async def main():
     print('Connected to Gateway!')
 
     # Test Gateway Registration
-    registered_agents = await local_gw.get_registered_agents()
-    print(f"Registered Agents: {registered_agents}")
-    registered_nodes = await local_gw.get_registered_nodes()
-    print(f"Registered Nodes: {registered_nodes}")
+    # registered_agents = await local_gw.get_registered_agents()
+    # print(f"Registered Agents: {registered_agents}")
+    # registered_nodes = await local_gw.get_registered_nodes()
+    # print(f"Registered Nodes: {registered_nodes}")
 
     async def process_response_func(message: AgentMessage):
-        print(f"Received Response: {message.content}")
+        print(f"Received Response: {message.content[0]._text}")
         if message.session_status == SessionStatus.STOP_RESPONSE:
             print("Session Stopped")
 
@@ -80,7 +86,13 @@ async def main():
         await example_agent_client.start("localhost:50055", GatewayServiceStub, "RouteAgentCalling")
         print('Init Agent Client Done.')
 
-        example_msg = AgentMessage(content=[ContentItem(text="Hello World")],
+        citem = ContentItem()
+        citem._text = "Hello World"
+        citem_1 = ContentItem()
+        citem_1._text = "Hold request"
+        citem_2 = ContentItem()
+        citem_2._text = "Stop request"
+        example_msg = AgentMessage(content=[citem],
                                    sender_id="agent_1",
                                    receiver_id="agent_2",
                                    session_id="",
@@ -89,7 +101,25 @@ async def main():
                                    message_id='m0',
                                    reply_to_message_id='m0')
         # await local_gw.deregister_node("agent_2")
+        example_msg_1 = AgentMessage(content=[citem_1],
+                                   sender_id="agent_1",
+                                   receiver_id="agent_2",
+                                   session_id="",
+                                   session_status=SessionStatus.HOLD_QUEST,
+                                   task_info=TaskInfo(task_id='0', parent_task_ids=['0'], task_status=TaskStatus.EXECUTING),
+                                   message_id='m0',
+                                   reply_to_message_id='m0')
+        example_msg_2 = AgentMessage(content=[citem_2],
+                                   sender_id="agent_1",
+                                   receiver_id="agent_2",
+                                   session_id="",
+                                   session_status=SessionStatus.STOP_QUEST,
+                                   task_info=TaskInfo(task_id='0', parent_task_ids=['0'], task_status=TaskStatus.EXECUTING),
+                                   message_id='m0',
+                                   reply_to_message_id='m0')
         await example_agent_client.send_message(example_msg)
+        await example_agent_client.send_message(example_msg_1)
+        await example_agent_client.send_message(example_msg_2)
 
         final_response = await example_agent_client.wait_completion()
         print(f"Final response: {final_response.content}")
