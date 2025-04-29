@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 19 20:00:00 2025
 
-@author: clleng & haixin
+@author: clleng & haixin & xmkang
 """
 
 # -*- coding: utf-8 -*-
@@ -23,7 +23,8 @@ class AgentService(AgentServiceServicer):
     
     def __init__(self, 
                  agent_info: pb2.AgentInfo,
-                 heartbeat_interval: int = 10):
+                 heartbeat_interval: int = 10,
+                 update_check_interval: int = 10):
         """
         Initialize a new Agent instance.
         
@@ -39,6 +40,7 @@ class AgentService(AgentServiceServicer):
                 skills (List[schema_pb2.AgentInfo.AgentSkill]): List of skills for the agent.
                 version (str): Version of the agent.
             heartbeat_interval: Interval in seconds between heartbeats
+            update_check_interval: Interval in seconds between checking for self info updates
         """
         #creat agent info
         self.agent_info = agent_info
@@ -60,6 +62,17 @@ class AgentService(AgentServiceServicer):
         # Heartbeat
         self._heartbeat_task = None
         self.heartbeat_interval = heartbeat_interval
+        
+        #Update
+        # self Info update
+        self._update_check_task = None
+        self.update_check_interval = update_check_interval
+        self._last_info_hash = self._hash_agent_info(self.agent_info) #hash of the history agent info for detecting changes
+        #other nodes update subscription
+        self._update_subscription_task = None
+        self._subscribed_node_ids = set()  # Specific nodes to subscribe to
+
+
 
     async def _update_peers(self, new_peers):
         """
@@ -78,7 +91,7 @@ class AgentService(AgentServiceServicer):
                 self._peers.update({tool_info.tool_id: tool_info})
             else:
                 raise ValueError
-
+    
     async def _handle_server_termination(self):
         try:
             await self._server.wait_for_termination()
@@ -101,6 +114,7 @@ class AgentService(AgentServiceServicer):
             processed_msg (AsyncIterable[schema_pb2.AgentMessage]): Processed agent messages to be sent back.
         """
         pass
+    
     
     
     async def _send_heartbeat(self):
@@ -129,6 +143,199 @@ class AgentService(AgentServiceServicer):
             except Exception as e:
                 print(f"<{self.agent_id}>: Heartbeat error: {str(e)}")
                 await asyncio.sleep(self.heartbeat_interval)
+                
+                
+    def _hash_agent_info(self, agent_info: pb2.AgentInfo):
+        """
+        Create a hash of agent info for detecting changes.
+        Args:
+            agent_info: Agent information to hash
+            
+        Returns:
+            Hash value as integer
+        """
+        hash_components = [
+            agent_info.agent_id,
+            agent_info.name,
+            agent_info.domain,
+            agent_info.description,
+            agent_info.version,
+            str(agent_info.input_mode),
+            str(agent_info.output_mode),
+            str([skill.skill_id + skill.capability for skill in agent_info.skills])
+        ]
+        return hash("".join(hash_components))
+                
+    async def _check_agent_info_updates(self):
+        """Periodically check if agent info has changed and notify gateway if needed."""
+        if not self._gateway_address:
+            return
+        stub = self._connection_pool.get_stub(self._gateway_address)
+        
+        while True:
+            try:
+                # Check if agent info has changed
+                current_hash = self._hash_agent_info(self.agent_info)
+                if current_hash != self._last_info_hash:
+                    print(f"<{self.agent_id}>: Agent info changed, updating gateway")
+                    self._last_info_hash = current_hash
+                    
+                    # Create update request
+                    peer = pb2.Peer()
+                    peer.agent_info.CopyFrom(self.agent_info)
+                    request = pb2.UpdateNodeInfoRequest(
+                        sender_id = self.agent_id,
+                        peer = peer
+                    )
+                    # Send update request to the gateway
+                    response = await stub.UpdateNodeInfo(request)
+                    if not response.success:
+                        print(f"<{self.agent_id}>: Update failed: {response.message}")
+                    else:
+                        print(f"<{self.agent_id}>: Agent info updated successfully")
+                
+                # Wait for the next interval
+                await asyncio.sleep(self.update_check_interval)
+                
+            except grpc.aio.AioRpcError as e:
+                print(f"<{self.agent_id}>: Update check RPC error: {e.details()}")
+                await asyncio.sleep(self.update_check_interval)
+            except Exception as e:
+                print(f"<{self.agent_id}>: Update check error: {str(e)}")
+                await asyncio.sleep(self.update_check_interval)
+                
+                
+    async def _subscribe_to_updates(self):
+        """
+        Subscribe to node updates from the gateway. When reviced update message, update self._peers
+        
+        """
+        if not self._gateway_address:
+            return
+        
+        stub = self._connection_pool.get_stub(self._gateway_address)
+        
+        # Create subscription request
+        request = pb2.UpdateSubscriptionRequest(
+            subscriber_id=self.agent_id,
+            node_ids=list(self._subscribed_node_ids) #If empty, subscribe to all nodes
+        )
+        
+        try:
+            # Send subscription request
+            async for update_message in stub.SubscribeToUpdates(request):
+                # Process received update
+                update_type = update_message.update_type
+                node_id = update_message.node_id
+                if update_type == pb2.NodeUpdate.ADDED or update_type == pb2.NodeUpdate.UPDATED:
+                    # Update local peer information
+                    await self._update_peers([update_message.peer])
+                    print(f"<{self.agent_id}>: Received {pb2.NodeUpdate.UpdateType.Name(update_type)} update for node {node_id}")
+                elif update_type == pb2.NodeUpdate.REMOVED:
+                    # Remove from local peers dictionary
+                    if node_id in self._peers:
+                        del self._peers[node_id]
+                        print(f"<{self.agent_id}>: Node {node_id} removed from peers")
+                
+        except grpc.aio.AioRpcError as e:
+            print(f"<{self.agent_id}>: Update subscription error: {e.details()}")
+            # Try to re-establish subscription after some delay
+            await asyncio.sleep(5)
+            if not self._update_subscription_task.done():
+                asyncio.create_task(self._subscribe_to_updates())
+        except Exception as e:
+            print(f"<{self.agent_id}>: Subscription error: {str(e)}")
+            await asyncio.sleep(5)
+            if not self._update_subscription_task.done():
+                asyncio.create_task(self._subscribe_to_updates())
+    
+    async def subscribe_to_node(self, node_id: str) -> bool:
+        """
+        Subscribe to updates for a specific node.
+            
+        Returns:
+            Success status
+        """
+        if node_id in self._subscribed_node_ids:
+            print(f"<{self.agent_id}>: {node_id} has been subscribed")
+            return True
+        
+        self._subscribed_node_ids.add(node_id)
+        
+        # Restart subscription task if it exists
+        if self._update_subscription_task:
+            self._update_subscription_task.cancel()
+            try:
+                await self._update_subscription_task
+            except asyncio.CancelledError:
+                pass
+            self._update_subscription_task = asyncio.create_task(self._subscribe_to_updates())
+        
+        return True
+
+
+
+    async def unsubscribe_from_nodes(self, node_ids: List[str] = list()) -> bool:
+        """
+        Send an unsubscribe request to the gateway.
+        
+        Args:
+            node_ids: List of node IDs to unsubscribe from. 
+                      If empty, unsubscribe from all nodes.
+                     
+        Returns:
+            Success status
+        """
+        if not self._gateway_address:
+            print(f"<{self.agent_id}>: No gateway connection established")
+            return False
+
+            
+        stub = self._connection_pool.get_stub(self._gateway_address)
+        
+        try:            
+            # Create unsubscribe request
+            request = pb2.UnsubscribeRequest(
+                subscriber_id=self.agent_id,
+                node_ids=node_ids
+            )
+            
+            # Send unsubscribe request to gateway
+            response = await stub.Unsubscribe(request)
+            
+            if response.success:
+                print(f"<{self.agent_id}>: Successfully unsubscribed from nodes: {response.message}")
+                
+                # Update local subscription state if needed
+                if not node_ids:  # If unsubscribing from all
+                    self._subscribed_node_ids.clear()
+                else:
+                    for node_id in node_ids:
+                        if node_id in self._subscribed_node_ids:
+                            self._subscribed_node_ids.remove(node_id)
+                
+                # Restart subscription task with updated subscriptions
+                if self._update_subscription_task:
+                    self._update_subscription_task.cancel()
+                    try:
+                        await self._update_subscription_task
+                    except asyncio.CancelledError:
+                        pass
+                    if self._subscribed_node_ids:  # Only restart if still have subscriptions
+                        self._update_subscription_task = asyncio.create_task(self._subscribe_to_updates())
+                
+                return True
+            else:
+                print(f"<{self.agent_id}>: Failed to unsubscribe: {response.message}")
+                return False
+                
+        except grpc.aio.AioRpcError as e:
+            print(f"<{self.agent_id}>: Unsubscribe RPC error: {e.details()}")
+            return False
+        except Exception as e:
+            print(f"<{self.agent_id}>: Unsubscribe error: {str(e)}")
+            return False
+
 
     async def start(self):
         """
@@ -148,13 +355,14 @@ class AgentService(AgentServiceServicer):
 
     async def stop(self) -> None:
         """Stop the Agent service gRPC server."""
-        # Cancel heartbeat task
-        if self._heartbeat_task and not self._heartbeat_task.done():
-            self._heartbeat_task.cancel()
-            try:
-                await self._heartbeat_task
-            except asyncio.CancelledError:
-                pass
+        # Cancel all background tasks
+        for task in [self._heartbeat_task, self._update_check_task, self._update_subscription_task]:
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
         
         if self._server:
             await self._server.stop(grace=10.0)
@@ -180,8 +388,10 @@ class AgentService(AgentServiceServicer):
 
             print(f"<{self.agent_id}>: RegisterResponse from GW ({gateway_address})")
             
-            # Start heartbeat task after successful registration
+            # Start background tasks after successful registration
             self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
+            self._update_check_task = asyncio.create_task(self._check_agent_info_updates())
+            self._update_subscription_task = asyncio.create_task(self._subscribe_to_updates())
 
         except grpc.aio.AioRpcError as e:
             print(f"RPC Error: {e.details()}")
