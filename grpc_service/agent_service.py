@@ -205,20 +205,28 @@ class AgentService(AgentServiceServicer):
                 await asyncio.sleep(self.update_check_interval)
                 
                 
-    async def _subscribe_to_updates(self):
+    async def _subscribe_to_updates(self, node_ids: List[str] = list()):
         """
         Subscribe to node updates from the gateway. When reviced update message, update self._peers
+        If empty, subscribe to all nodes
         
+        Args:
+            node_ids: Optional list of node IDs to subscribe to. If None, use self._subscribed_node_ids.
+
         """
         if not self._gateway_address:
-            return
+            return 
         
         stub = self._connection_pool.get_stub(self._gateway_address)
+        
+        # Use provided node_ids or fall back to instance variable
+        nodes_to_subscribe = node_ids if len(node_ids) > 0 else list(self._subscribed_node_ids)
+    
         
         # Create subscription request
         request = pb2.UpdateSubscriptionRequest(
             subscriber_id=self.agent_id,
-            node_ids=list(self._subscribed_node_ids) #If empty, subscribe to all nodes
+            node_ids=nodes_to_subscribe #If empty, subscribe to all nodes
         )
         
         try:
@@ -248,28 +256,37 @@ class AgentService(AgentServiceServicer):
             await asyncio.sleep(5)
             if not self._update_subscription_task.done():
                 asyncio.create_task(self._subscribe_to_updates())
-    
-    async def subscribe_to_node(self, node_id: str) -> bool:
+
+
+
+    async def subscribe_to_nodes(self, node_ids: List[str] = list()) -> bool:
         """
-        Subscribe to updates for a specific node.
-            
+        Send a subscription request to the gateway.
+        
+        Args:
+            node_ids: List of node IDs to subscribe to.
+                     Empty list means subscribe to all nodes.
+                     
         Returns:
             Success status
         """
-        if node_id in self._subscribed_node_ids:
-            print(f"<{self.agent_id}>: {node_id} has been subscribed")
-            return True
+        if not self._gateway_address:
+            print(f"<{self.agent_id}>: No gateway connection established")
+            return False
+            
+        # Use current subscriptions if none provided
+        node_id_list = list(self._subscribed_node_ids) if len(node_ids) == 0 else node_ids
         
-        self._subscribed_node_ids.add(node_id)
-        
-        # Restart subscription task if it exists
+        # Restart subscription task with the new list
         if self._update_subscription_task:
             self._update_subscription_task.cancel()
             try:
                 await self._update_subscription_task
             except asyncio.CancelledError:
                 pass
-            self._update_subscription_task = asyncio.create_task(self._subscribe_to_updates())
+        
+        # Start new subscription task with the specified node_ids
+        self._update_subscription_task = asyncio.create_task(self._subscribe_to_updates(node_id_list))
         
         return True
 
@@ -278,6 +295,7 @@ class AgentService(AgentServiceServicer):
     async def unsubscribe_from_nodes(self, node_ids: List[str] = list()) -> bool:
         """
         Send an unsubscribe request to the gateway.
+        Remove the unsubscribed nodes, and then restart new subscribe
         
         Args:
             node_ids: List of node IDs to unsubscribe from. 
