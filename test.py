@@ -57,7 +57,7 @@ async def main():
     await gateway.start()
     print("Gateway started")
     
-    sum_tool = Tool.creat_function_tool(
+    sum_tool = Tool.create_function_tool(
         address="localhost:50051",
         function=calculate_sum,
         name="Sum",

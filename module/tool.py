@@ -9,11 +9,37 @@ import asyncio
 import uuid
 import inspect
 import functools
-from typing import Dict, Callable, Any, Optional, List
+import aiohttp
+import json
+from typing import Dict, Callable, Any, Optional, List, Union
 
 from grpc_service.type import ToolInfo, ToolRequest, ToolResponse, Mode, ContentItem
 from grpc_service import ToolServiceStub
 from module.server import ToolServer
+
+
+
+class APIConfig:
+    """Configuration for API-based tools."""
+    
+    def __init__(self, 
+                 url: str,
+                 method: str = "GET",
+                 headers: Dict[str, str] = None,
+                 timeout: int = 30):
+        """
+        Initialize API configuration.
+        
+        Args:
+            url: The base URL for the API endpoint
+            method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            headers: HTTP headers to include in the request
+            timeout: Request timeout in seconds
+        """
+        self.url = url
+        self.method = method.upper()
+        self.headers = headers or {}
+        self.timeout = timeout
 
 
 class Tool:
@@ -30,7 +56,6 @@ class Tool:
                  version: str = "1.0.0",
                  input_mode: List[Mode] = [Mode.TEXT],
                  output_mode: List[Mode] = [Mode.TEXT],
-                 executor: Callable = None,
                  arguments: Dict[str, str] = None):
         """
         Initialize a new Tool.
@@ -44,7 +69,6 @@ class Tool:
             version: Tool version
             input_mode: Expected input modality (TEXT, IMAGE, etc.)
             output_mode: Output modality provided by the tool
-            executor: An executable function used to complete tasks. It should be defined by user.
             arguments: Dictionary of argument names and their descriptions
         """
         self.address = address
@@ -56,8 +80,11 @@ class Tool:
         self.input_mode = input_mode
         self.output_mode = output_mode
         self.arguments = arguments or {}
+        
         #function executor
-        self._executor = executor
+        self._func_executor = None
+        #api call config
+        self._api_config = None
         
         # Create tool info
         self.tool_info = self._create_tool_info()
@@ -152,7 +179,7 @@ class Tool:
         try:
             
             # Process based on tool type
-            if self._executor is not None:
+            if self._func_executor is not None:
                 # Function-based tool
                 result = await self._execute_custom_func(request.arguments)
                 citem = ContentItem.write_text(str(result))
@@ -165,11 +192,21 @@ class Tool:
                     error_message = "No Error"
                 )
 
-            # elif self._api_config is not None:
-            #     # API-based tool
-            #     result = await self._execute_api_call(request.arguments)
-            #     response.content = result
-            #     response.success = True
+            elif self._api_config is not None:
+                # API-based tool
+                result = await self._execute_api_call(request.arguments)
+                if isinstance(result, str):
+                    citem = ContentItem.write_text(result)
+                else:
+                    citem = ContentItem.write_text(json.dumps(result, indent=2))
+                response = ToolResponse(
+                    sender_id=self.tool_id,
+                    receiver_id=request.sender_id,
+                    session_id=request.session_id,
+                    content=[citem],
+                    is_error=False,
+                    error_message="No Error"
+                )
 
             # elif self._mcp_config is not None:
             #     # MCP-based tool
@@ -178,8 +215,15 @@ class Tool:
             #     response.success = True
 
             else:
-                # No executor defined
-                response.error_message = "No handler configured for this tool"
+                # No executor or api_config defined
+                response = ToolResponse(
+                    sender_id=self.tool_id,
+                    receiver_id=request.sender_id,
+                    session_id=request.session_id,
+                    content=[],
+                    is_error=True,
+                    error_message="No handler configured for this tool"
+                )
 
             return response
 
@@ -188,28 +232,83 @@ class Tool:
             return ToolResponse(
                 sender_id=self.tool_id,
                 receiver_id=request.sender_id,
-                success=False,
+                session_id=request.session_id,
+                content=[],
+                is_error=True,
                 error_message=f"Error executing tool: {str(e)}"
             )
         
     
     async def _execute_custom_func(self, arguments: Dict[str, str]) -> Any:
         """Execute the function-based tool handler."""
-        if not callable(self._executor):
+        if not callable(self._func_executor):
             raise ValueError("Executor is not callable")
 
         # Check if handler is a coroutine function
-        if inspect.iscoroutinefunction(self._executor):
-            result = await self._executor(**arguments)
+        if inspect.iscoroutinefunction(self._func_executor):
+            result = await self._func_executor(**arguments)
         else:
             # Run synchronous functions in the executor
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
                 None,
-                functools.partial(self._executor, **arguments)
+                functools.partial(self._func_executor, **arguments)
             )
         return result
+    
 
+    async def _execute_api_call(self, arguments: Dict[str, str]) -> Any:
+        """Execute the API call with the provided arguments."""
+        if not self._api_config:
+            raise ValueError("API configuration is not set")
+            
+        # Process URL - replace {param} placeholders with argument values
+        url = self._api_config.url
+        for arg_name, arg_value in arguments.items():
+            placeholder = f"{{{arg_name}}}"
+            if placeholder in url:
+                url = url.replace(placeholder, arg_value)
+        
+        # Execute the HTTP request
+        async with aiohttp.ClientSession() as session:
+            method = self._api_config.method.lower()
+            request_kwargs = {
+                "headers": dict(self._api_config.headers),
+                "timeout": self._api_config.timeout
+            }
+            
+            # For GET requests, add arguments not used in URL as query parameters
+            if method == "get":
+                query_params = {}
+                for arg_name, arg_value in arguments.items():
+                    if f"{{{arg_name}}}" not in self._api_config.url:
+                        query_params[arg_name] = arg_value
+                if query_params:
+                    request_kwargs["params"] = query_params
+            
+            # For other methods (POST, PUT, etc.), add unused arguments to request body
+            elif method in ["post", "put", "patch"]:
+                body_params = {}
+                for arg_name, arg_value in arguments.items():
+                    if f"{{{arg_name}}}" not in self._api_config.url:
+                        body_params[arg_name] = arg_value
+                if body_params:
+                    request_kwargs["json"] = body_params
+            
+            # Execute the request
+            http_method = getattr(session, method)
+            async with http_method(url, **request_kwargs) as response:
+                # Check if the request was successful
+                response.raise_for_status()
+                
+                # Process the response based on content type
+                content_type = response.headers.get("Content-Type", "")
+                if "application/json" in content_type:
+                    result = await response.json()
+                else:
+                    result = await response.text()
+                    
+                return result
     
     async def start(self):
         """Start the tool server."""
@@ -233,17 +332,17 @@ class Tool:
         return self
     
     @classmethod
-    def creat_function_tool(cls,
-                            function: Callable,
-                            address: str,
-                            tool_id: str = None,
-                            name: str = None,
-                            domain: str = "default",
-                            description: str = None,
-                            version: str = "1.0.0",
-                            input_mode: List[Mode] = [Mode.TEXT],
-                            output_mode: List[Mode] = [Mode.TEXT],
-                            arguments: Dict[str, Any] = None) -> 'Tool':
+    def create_function_tool(cls,
+                             function: Callable,
+                             address: str,
+                             tool_id: str = None,
+                             name: str = None,
+                             domain: str = "default",
+                             description: str = None,
+                             version: str = "1.0.0",
+                             input_mode: List[Mode] = [Mode.TEXT],
+                             output_mode: List[Mode] = [Mode.TEXT],
+                             arguments: Dict[str, Any] = None) -> 'Tool':
         """
         Create a Tool from a Python function.
 
@@ -300,10 +399,87 @@ class Tool:
             version=version,
             input_mode=input_mode,
             output_mode=output_mode,
-            executor=function,
             arguments=arguments
         )
+        
+        # Set the function executor
+        tool._func_executor = function
 
+        return tool
+
+    
+    @classmethod
+    def create_api_tool(cls,
+                       address: str,
+                       api_url: str,
+                       api_method: str = "GET",
+                       api_headers: Dict[str, str] = None,
+                       api_timeout: int = 30,
+                       tool_id: str = None,
+                       name: str = None,
+                       domain: str = "default",
+                       description: str = "",
+                       version: str = "1.0.0",
+                       input_mode: List[Mode] = [Mode.TEXT],
+                       output_mode: List[Mode] = [Mode.TEXT],
+                       arguments: Dict[str, str] = None) -> 'Tool':
+        """
+        Create a Tool from an API configuration.
+        
+        Args:
+            address: Address where this tool service will be hosted
+            api_url: The API endpoint URL (can contain placeholders like {param_name})
+            api_method: HTTP method (GET, POST, PUT, DELETE, etc.)
+            api_headers: HTTP headers to include in the request
+            api_timeout: Request timeout in seconds
+            tool_id: Unique identifier for this tool
+            name: Human-readable name for this tool
+            domain: Tool domain/group
+            description: Tool description
+            version: Tool version
+            input_mode: Input modality
+            output_mode: Output modality
+            arguments: Dictionary of argument names and their descriptions
+            
+        Returns:
+            An initialized Tool instance configured for API calls
+        """
+        # Generate a default tool_id and name if not provided
+        if not tool_id:
+            base_name = api_url.split("/")[-1] if api_url.split("/")[-1] else api_url.split("/")[-2]
+            tool_id = f"api_{base_name}_{str(uuid.uuid4())[:8]}"
+        if not name:
+            name = tool_id
+        # Extract arguments from URL placeholders if not provided
+        if not arguments:
+            arguments = {}
+            # Look for {param_name} patterns in the URL
+            import re
+            placeholders = re.findall(r"\{([^}]+)\}", api_url)
+            for placeholder in placeholders:
+                arguments[placeholder] = f"Parameter for {placeholder}"
+                        
+        # Create the Tool instance
+        tool = cls(
+            tool_id=tool_id,
+            name=name,
+            address=address,
+            domain=domain,
+            description=description,
+            version=version,
+            input_mode=input_mode,
+            output_mode=output_mode,
+            arguments=arguments
+        )
+        
+        # Set the API configuration
+        tool._api_config = APIConfig(
+            url=api_url,
+            method=api_method,
+            headers=api_headers,
+            timeout=api_timeout
+        )
+        
         return tool
 
             
@@ -324,4 +500,5 @@ class Tool:
         )
 
         return await self._default_process_request_handler(request)
-    
+        
+        
