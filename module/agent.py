@@ -187,6 +187,54 @@ class Agent:
         return {}
     
     
+    async def subscribe_to_nodes(self, node_ids=list()):
+        """Subscribe to updates from specific nodes"""
+        if not self._server:
+            raise RuntimeError("Agent server not started. Call start() first.")
+        return await self._server.subscribe_to_nodes(node_ids)
+    
+    async def unsubscribe_from_nodes(self, node_ids=list()):
+        """Unsubscribe from updates from specific nodes"""
+        if not self._server:
+            raise RuntimeError("Agent server not started. Call start() first.")
+        return await self._server.unsubscribe_from_nodes(node_ids)
+    
+    async def update_agent_info(self, 
+                              name=None, 
+                              description=None, 
+                              domain=None,
+                              version=None, 
+                              input_mode=None, 
+                              output_mode=None, 
+                              skills=None):
+        """Update agent information with the gateway"""
+        # Update local properties
+        if name is not None:
+            self.name = name
+        if description is not None:
+            self.description = description
+        if domain is not None:
+            self.domain = domain
+        if version is not None:
+            self.version = version
+        if input_mode is not None:
+            self.input_mode = input_mode
+        if output_mode is not None:
+            self.output_mode = output_mode  
+        if skills is not None:
+            self.skills = skills
+        
+        # Create updated agent info
+        updated_agent_info = self._create_agent_info()
+        
+        # Pass to server
+        if self._server:
+            await self._server.update_agent_info(updated_agent_info)
+        
+        return self
+        
+    
+    
     def create_task_info(self, parent_task_ids: List[str] = None) -> TaskInfo:
         """
         Create a new task info object.

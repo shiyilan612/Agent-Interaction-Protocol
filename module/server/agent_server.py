@@ -2,7 +2,7 @@
 """
 Created on Mon Apr 21 12:00:00 2025
 
-@author: haixinwa
+@author: haixinwa & xmkang
 """
 import grpc
 import asyncio
@@ -59,3 +59,19 @@ class AgentServer(AgentService):
         finally:
             receive_task.cancel()
             await self.session_mgr.close_session(client_session_id)
+            
+            
+    async def subscribe_to_nodes(self, node_ids=list()):
+        """Subscribe to updates from specific nodes or all nodes"""
+        return await super().subscribe_to_nodes(node_ids)
+    
+    async def unsubscribe_from_nodes(self, node_ids=list()):
+        """Unsubscribe from updates from specific nodes or all nodes"""
+        return await super().unsubscribe_from_nodes(node_ids)
+    
+    async def update_agent_info(self, new_agent_info):
+        """Update the agent info with the gateway"""
+        # Store the new info in the underlying service
+        self.agent_info = new_agent_info.to_grpc()
+        # The AgentService._check_agent_info_updates will detect the change
+        # and notify the gateway on the next update interval

@@ -86,6 +86,44 @@ class Tool:
         )
         return tool_info
     
+    
+    
+    async def update_tool_info(self, 
+                              name=None, 
+                              description=None, 
+                              domain=None,
+                              version=None, 
+                              input_mode=None, 
+                              output_mode=None, 
+                              arguments=None):
+        """Update tool information with the gateway"""
+        # Update local properties
+        if name is not None:
+            self.name = name
+        if description is not None:
+            self.description = description
+        if domain is not None:
+            self.domain = domain
+        if version is not None:
+            self.version = version
+        if input_mode is not None:
+            self.input_mode = input_mode
+        if output_mode is not None:
+            self.output_mode = output_mode  
+        if arguments is not None:
+            self.arguments = arguments
+        
+        # Create updated agent info
+        updated_tool_info = self._create_tool_info()
+        
+        # Pass to server
+        if self._server:
+            await self._server.update_tool_info(updated_tool_info)
+        
+        return self
+    
+    
+    
     def set_process_request_handler(self, handler: Callable[[ToolRequest], ToolResponse]):
         """
         Set the function to handle incoming tool requests.
