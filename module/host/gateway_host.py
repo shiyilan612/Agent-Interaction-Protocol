@@ -62,7 +62,7 @@ class GatewayHost(GatewayService):
                     # close the session if the response is STOP_RESPONSE
                     forward_task.cancel()
                     await self.session_mgr.close_session(session_id=session.session_id)
-                    print(f"<GW>: Session {session.session_id} closed")
+                    # print(f"<GW>: Session {session.session_id} closed")
                     yield response.to_grpc()
                     break
 
