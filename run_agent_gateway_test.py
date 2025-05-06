@@ -25,7 +25,7 @@ async def main():
             message.session_status = SessionStatus.STOP_RESPONSE
             message.task_info.task_status = TaskStatus.FINISH
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.1)
 
         return message
 
@@ -76,7 +76,8 @@ async def main():
     # print(f"Registered Nodes: {registered_nodes}")
 
     async def process_response_func(message: AgentMessage):
-        print(f"Received Response: {message.content[0]._text}")
+        receiver_id = message.receiver_id
+        print(f"<{receiver_id}>: Received Response: {message.content[0]._text}")
         if message.session_status == SessionStatus.STOP_RESPONSE:
             print("Session Stopped")
 
@@ -122,7 +123,7 @@ async def main():
         await example_agent_client.send_message(example_msg_2)
 
         final_response = await example_agent_client.wait_completion()
-        print(f"Final response: {final_response.content}")
+        print(f"Final response: {final_response.content[0]._text}")
     finally:
         await example_agent_client.close()
 
