@@ -137,13 +137,15 @@ class GatewayService(GatewayServiceServicer):
     async def RouteAgentCalling(self,
                                 request_iterator: AsyncIterable[pb2.AgentMessage],
                                 context: grpc.aio.ServicerContext) -> AsyncIterable[pb2.AgentMessage]:
-        """消息路由主入口"""
-        async for message in request_iterator:
-            # route 响应流
-            async for response in self._forward_agent_message(message):
-                yield response
-                # TODO: 这里目前只返回一个包
-                break
+        """Route agent messages to the receiver and get the response.
+        
+        Args:
+            request_iterator (AsyncIterable[pb2.AgentMessage]): The agent messages to be routed.
+            context (grpc.aio.ServicerContext): The gRPC context.
+            
+        Returns:
+            AsyncIterable[pb2.AgentMessage]: The response from the receiver."""
+        pass
 
     async def RouteToolCalling(self,
                                request: pb2.ToolRequest,
