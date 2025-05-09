@@ -6,6 +6,7 @@ Created on Mon Apr 21 12:00:00 2025
 """
 import time
 import asyncio
+import grpc
 from typing import Dict, Callable
 from grpc_service.type import AgentMessage, SessionStatus
 
@@ -30,6 +31,12 @@ class AgentClientSession:
                 if response.session_status == SessionStatus.STOP_RESPONSE:
                     if self.active_session and not self.active_session.done():
                         self.active_session.set_result(response)
+        except grpc.RpcError as rpc_error:
+            # TODO: 加入异常处理log逻辑，统一异常处理模块？
+            if self.active_session and not self.active_session.done():
+                self.active_session.set_exception(rpc_error)
+            self._running = False
+            raise
         except Exception as e:
             if self.active_session and not self.active_session.done():
                 self.active_session.set_exception(e)
