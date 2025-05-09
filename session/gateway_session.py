@@ -6,6 +6,7 @@ Created on Sun Apr 27 16:25:37 2025
 """
 
 import asyncio
+import grpc
 from typing import Dict, Union
 from grpc_service import AgentServiceStub, GatewayServiceStub
 from grpc_service.type import AgentMessage
@@ -87,6 +88,10 @@ class GatewaySession:
             async for response in self.stream_stream_call:
                 # print(f"Received response from stream: {AgentMessage.from_grpc(response).content[0]._text}")
                 await self.response_queue.put(AgentMessage.from_grpc(response))
+        except grpc.RpcError as e:
+            print(f"<GW session {self.session_id}> stream call error: {e.code()}, details: {e.details()}")
+            await self.response_queue.put(None)
+            raise
         except asyncio.CancelledError:
             # print(f"<GW session {self.session_id}> incoming queue canceled")
             raise
@@ -97,6 +102,9 @@ class GatewaySession:
         """Get a message from response queue"""
         while self._is_active or not self.response_queue.empty():
             response: AgentMessage = await self.response_queue.get()
+            if not response and self._response_task.done():
+                if self._response_task.exception():
+                    raise self._response_task.exception()
             # print(f"Get response from queue: {response.content[0]._text}")
             yield response
 

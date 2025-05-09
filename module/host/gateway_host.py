@@ -35,8 +35,21 @@ class GatewayHost(GatewayService):
         _first_message = await request_iterator.__aiter__().__anext__()
         first_message = AgentMessage.from_grpc(_first_message)
         
+        if first_message.session_status != SessionStatus.START_QUEST:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details("First message must be START_QUEST")
+            return
+
+        client_session_id = first_message.session_id
+        if not client_session_id:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details("Missing session_id in START_QUEST")
+            return
+        
         stub = await super().get_node_stub(first_message.receiver_id)
         if not stub:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details("Receiver not found")
             print(f"<GW>: Routing failed: Receiver {first_message.receiver_id} not found")
             return
         
@@ -69,7 +82,9 @@ class GatewayHost(GatewayService):
                 yield response.to_grpc()
         except grpc.RpcError as e:
             receiver_info = await super().get_node_info(session.receiver_id)
-            print(f"<GW>: Get Response from Agent {session.receiver_id} (address: {receiver_info.address}) failed: {e.code()}")
+            print(f"<GW>: Get Response from Agent {session.receiver_id} (address: {receiver_info.address}) failed: {e.code()} details: {e.details()}")
+            context.set_code(e.code())
+            context.set_details(e.details())
             # delete failed node
             await super().deregister_node(session.receiver_id)
             return
