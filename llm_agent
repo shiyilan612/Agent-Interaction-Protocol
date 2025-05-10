@@ -1,0 +1,361 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu May 09 10:15:23 2025
+
+@author: xmkang
+"""
+
+import asyncio
+import json
+import aiohttp
+from typing import Dict, List, Optional, Callable, Any, Union
+
+from module.agent import Agent
+from grpc_service.type import AgentMessage, ToolResponse, Mode, AgentSkill, TaskInfo, SessionStatus
+
+
+class LLMProvider:
+    """Base class for LLM providers."""
+
+    async def generate(self,
+                       prompt: str,
+                       system_message: str = None,
+                       temperature: float = 0.7,
+                       max_tokens: int = 1024) -> str:
+        """Generate text from the LLM."""
+        raise NotImplementedError("Subclasses must implement generate")
+
+
+class LocalLLMProvider(LLMProvider):
+    """Provider for locally deployed LLMs."""
+
+    def __init__(self, endpoint_url: str):
+        """
+        Initialize a locally deployed LLM provider.
+
+        Args:
+            endpoint_url: URL for the local LLM endpoint
+        """
+        self.endpoint_url = endpoint_url
+
+    async def generate(self,
+                       prompt: str,
+                       system_message: str = None,
+                       temperature: float = 0.7,
+                       max_tokens: int = 1024) -> str:
+        """Generate text from a locally deployed LLM."""
+
+        payload = {
+            "prompt": prompt,
+            "system_message": system_message or "",
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.endpoint_url, json=payload) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise Exception(f"LLM API error: {response.status}, {error_text}")
+
+                result = await response.json()
+                return result.get("text", "")
+
+
+class APILLMProvider(LLMProvider):
+    """Provider for cloud/API-based LLMs."""
+
+    def __init__(self,
+                 api_url: str,
+                 api_key: str,
+                 model_name: str = None):
+        """
+        Initialize an API-based LLM provider.
+
+        Args:
+            api_url: URL for the API endpoint
+            api_key: Authentication key for the API
+            model_name: Optional model name/version to use
+        """
+        self.api_url = api_url
+        self.api_key = api_key
+        self.model_name = model_name
+
+    async def generate(self,
+                       prompt: str,
+                       system_message: str = None,
+                       temperature: float = 0.7,
+                       max_tokens: int = 1024) -> str:
+        """Generate text from an API-based LLM."""
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "messages": [
+                {"role": "system", "content": system_message or "You are a helpful AI assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens
+        }
+
+        if self.model_name:
+            payload["model"] = self.model_name
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.api_url, headers=headers, json=payload) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise Exception(f"LLM API error: {response.status}, {error_text}")
+
+                result = await response.json()
+                return result.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+
+class LLMAgent(Agent):
+    """
+    An Agent using LLM.
+    """
+
+    def __init__(self,
+                 address: str,
+                 llm_provider: LLMProvider,
+                 system_message: str = None,
+                 agent_id: str = None,
+                 name: str = None,
+                 domain: str = "default",
+                 description: str = "",
+                 version: str = "1.0.0",
+                 input_mode: List[Mode] = [Mode.TEXT],
+                 output_mode: List[Mode] = [Mode.TEXT],
+                 skills: List[AgentSkill] = None,
+                 temperature: float = 0.7,
+                 max_tokens: int = 1024):
+        """
+        Initialize a new LLM-powered Agent.
+
+        Args:
+            address: Address where this agent will be hosted
+            llm_provider: Provider for LLM access
+            system_message: System prompt for the LLM
+            agent_id: Unique identifier for this agent
+            name: Human-readable name for this agent
+            domain: Agent group/domain
+            description: Detailed description of the agent's functionality
+            version: Agent version
+            input_mode: Expected input modality (TEXT, IMAGE, etc.)
+            output_mode: Output modality provided by the agent
+            skills: List of skills this agent possesses
+            temperature: LLM temperature parameter
+            max_tokens: Maximum number of tokens for LLM response
+        """
+        super().__init__(
+            address=address,
+            agent_id=agent_id,
+            name=name,
+            domain=domain,
+            description=description,
+            version=version,
+            input_mode=input_mode,
+            output_mode=output_mode,
+            skills=skills
+        )
+
+        self.llm_provider = llm_provider
+        self.system_message = system_message or "You are a helpful AI assistant."
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+        # Store known tools and agents for context
+        self._known_tools: Dict[str, Dict] = {}
+        self._known_agents: Dict[str, Dict] = {}
+
+        # Set the message processing function
+        self.set_process_request_handler(self._process_llm_request)
+
+    async def start(self):
+        """Start the LLM agent."""
+        await super().start()
+        return self
+
+    async def _process_llm_request(self, message: AgentMessage) -> AgentMessage:
+        """
+        Process incoming requests using the LLM.
+
+        Args:
+            message: The incoming agent message
+
+        Returns:
+            Response message from the LLM
+        """
+        # Extract text content from the message
+        message_text = ""
+        for content_item in message.content:
+            if content_item.content_type == Mode.TEXT:
+                message_text += content_item.text_content + "\n"
+
+        # Build context for the LLM
+        context = self._build_llm_context(message, message_text)
+
+        # Generate response using LLM
+        llm_response = await self.llm_provider.generate(
+            prompt=context,
+            system_message=self.system_message,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
+        )
+
+        # Parse the response for potential actions
+        action, content = self._parse_llm_response(llm_response)
+
+        if action == "call_tool":
+            # Handle tool calling
+            tool_response = await self._handle_tool_call(content)
+
+            # Create response with tool results
+            response = self.create_agent_message(
+                receiver_id=message.sender_id,
+                content=f"I used a tool to help answer your question. {tool_response}",
+                session_id=message.session_id,
+                session_status=SessionStatus.HOLD_QUEST,
+                reply_to_message_id=message.message_id
+            )
+
+        elif action == "ask_agent":
+            # Handle asking another agent
+            agent_response = await self._handle_agent_call(content, message.session_id)
+
+            # Create response with forwarded results
+            response = self.create_agent_message(
+                receiver_id=message.sender_id,
+                content=f"I consulted with another agent. {agent_response}",
+                session_id=message.session_id,
+                session_status=SessionStatus.HOLD_QUEST,
+                reply_to_message_id=message.message_id
+            )
+
+        else:
+            # Direct response
+            response = self.create_agent_message(
+                receiver_id=message.sender_id,
+                content=content,
+                session_id=message.session_id,
+                session_status=SessionStatus.HOLD_QUEST,
+                reply_to_message_id=message.message_id
+            )
+
+        return response
+
+
+    def _parse_llm_response(self, response: str) -> tuple:
+        """
+        Parse LLM response to determine if it contains an action.
+
+        Returns:
+            Tuple of (action_type, content)
+        """
+        # Check for tool call
+        if "TOOL_CALL:" in response:
+            try:
+                tool_part = response.split("TOOL_CALL:", 1)[1].strip()
+                # Extract the JSON part
+                json_str = tool_part.strip()
+                tool_info = json.loads(json_str)
+                return "call_tool", tool_info
+            except (json.JSONDecodeError, IndexError):
+                # If parsing fails, treat as direct response
+                return "direct", response
+
+        # Check for agent call
+        elif "ASK_AGENT:" in response:
+            try:
+                agent_part = response.split("ASK_AGENT:", 1)[1].strip()
+                # Extract the JSON part
+                json_str = agent_part.strip()
+                agent_info = json.loads(json_str)
+                return "ask_agent", agent_info
+            except (json.JSONDecodeError, IndexError):
+                # If parsing fails, treat as direct response
+                return "direct", response
+
+        # Check for direct response marker
+        elif "RESPONSE:" in response:
+            direct_part = response.split("RESPONSE:", 1)[1].strip()
+            return "direct", direct_part
+
+        # Default to direct response if no markers found
+        return "direct", response
+
+    async def _handle_tool_call(self, tool_info: Dict) -> str:
+        """
+        Handle a tool call from LLM response.
+
+        Args:
+            tool_info: Dictionary with tool_id, tool_name, and arguments
+
+        Returns:
+            Result from the tool as a string
+        """
+        try:
+            tool_id = tool_info.get("tool_id")
+            tool_name = tool_info.get("tool_name")
+            arguments = tool_info.get("arguments", {})
+
+            # Call the tool
+            response = await self.call_tool(
+                tool_id=tool_id,
+                tool_name=tool_name,
+                arguments=arguments
+            )
+
+            # Extract response content
+            result = ""
+            for content_item in response.content:
+                if content_item.content_type == Mode.TEXT:
+                    result += content_item.text_content
+
+            return result
+
+        except Exception as e:
+            return f"Error calling tool: {str(e)}"
+
+    async def _handle_agent_call(self, agent_info: Dict, session_id: str) -> str:
+        """
+        Handle asking another agent.
+
+        Args:
+            agent_info: Dictionary with agent_id and message
+            session_id: Current session ID to maintain conversation context
+
+        Returns:
+            Response from the agent as a string
+        """
+        try:
+            agent_id = agent_info.get("agent_id")
+            message = agent_info.get("message", "")
+
+            # Send message to the agent
+            client = await self.send_message(
+                receiver_id=agent_id,
+                content=message,
+                session_id=session_id
+            )
+
+            # Wait for response (this would require some modification to handle async responses)
+            # For now, assuming we get the response synchronously
+            if hasattr(client, "last_response") and client.last_response:
+                # Extract text from response
+                result = ""
+                for content_item in client.last_response.content:
+                    if content_item.content_type == Mode.TEXT:
+                        result += content_item.text_content
+                return result
+            else:
+                return "No response received from agent."
+
+        except Exception as e:
+            return f"Error communicating with agent: {str(e)}"
+
