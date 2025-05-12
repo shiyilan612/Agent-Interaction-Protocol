@@ -64,8 +64,8 @@ class Agent:
         self._server = None
         
         # Store active client connections
-        self._agent_clients: Dict[str, AgentClient] = {}
-        self._tool_clients: Dict[str, ToolClient] = {}
+        self._agent_clients: Dict[tuple[str, str], AgentClient] = {}
+        self._tool_clients: Dict[tuple[str, str], ToolClient] = {}
         
         # Gateway connection
         self._gateway_address = None
@@ -373,25 +373,43 @@ class Agent:
         )
         
         return message
-    
-    async def send_message(self, 
-                          receiver_id: str, 
-                          content: Union[str, bytes, List[Union[str, bytes]]],
-                          session_id: str = None,
-                          task_info: TaskInfo = None,
-                          content_mode: Optional[Union[Mode, List[Mode]]] = None,
-                          session_status: SessionStatus = None) -> AgentClient:
+
+    async def create_client(self, receiver_id):
+        client = AgentClient(self._process_response_func)
+        session_id = await client.start(
+            self._gateway_address,
+            GatewayServiceStub,
+            "RouteAgentCalling"
+        )
+        self._agent_clients[(session_id, receiver_id)] = client
+
+        async def _wait_client_end_up(session_id, receiver_id):
+            client = self._agent_clients[(session_id, receiver_id)]
+            await client.wait_completion()
+            await self.close_agent_client(session_id, receiver_id)
+
+        asyncio.create_task(_wait_client_end_up(session_id, receiver_id))
+
+        return session_id
+
+    async def send_message(self,
+                           session_id: str,
+                           receiver_id: str,
+                           content: Union[str, bytes, List[Union[str, bytes]]],
+                           content_mode: Optional[Union[Mode, List[Mode]]] = None,
+                           session_status: SessionStatus = None,
+                           task_info: TaskInfo = None):
         """
         Send a message to another agent through the gateway.
         
         Args:
+            session_id: Optional session ID (automatically generated if not provided)
             receiver_id: ID of the agent to send the message to
             content: Content of the message
-            session_id: Optional session ID (automatically generated if not provided)
-            task_info: Optional task info (automatically created if not provided)
             content_mode: Content mode of the message
             session_status: Session status to use (START_QUEST, HOLD_QUEST, or STOP_QUEST)
-                        If None, will auto-detect based on session existence
+                If None, will auto-detect based on session existence
+            task_info: Optional task info (automatically created if not provided)
             
         Returns:
             The AgentClient instance associated with this session
@@ -400,27 +418,23 @@ class Agent:
             raise RuntimeError("Not connected to gateway")
         
         # Check if we already have an active client for this receiver
-        client = self._agent_clients.get(receiver_id)
-        
+        client = self._agent_clients.get((session_id, receiver_id))
+        if not client:
+            raise RuntimeError(f"Not existed client (session id: {session_id} | receiver_id: {receiver_id})")
+
         # Determine session status based on client existence and provided status
         if session_status is None:
-            if not client:
+            if not client.occupied:
                 session_status = SessionStatus.START_QUEST  # New session
             else:
                 session_status = SessionStatus.HOLD_QUEST  # Continue existing session
-                
-        # Create a new client if none exists or if explicitly starting a new session
-        if not client or session_status == SessionStatus.START_QUEST:
-            # Create a new client and connect to the gateway
-            client = await AgentClient(self._process_response_func).start(
-                self._gateway_address, 
-                GatewayServiceStub,
-                "RouteAgentCalling"
-            )
-            self._agent_clients[receiver_id] = client
-        
+        elif session_status == SessionStatus.START_QUEST:
+            if client.occupied:
+                raise RuntimeError(f"Cannot start quest in an occupied client session")
+        else:
+            if not client.occupied:
+                raise RuntimeError(f"Cannot send {session_status} in a not occupied client session")
 
-            
         # Create task info if not provided
         if not task_info:
             task_info = self.create_task_info()
@@ -429,15 +443,13 @@ class Agent:
         message = self.create_agent_message(
             receiver_id=receiver_id,
             content=content,
-            session_id=session_id or client.session.session_id,
+            session_id=session_id,
             task_info=task_info,
             content_mode=content_mode,
             session_status=session_status
         )
         
         await client.send_message(message)
-        return client
-    
 
     def create_tool_request(self, 
                            receiver_id: str, 
@@ -529,7 +541,7 @@ class Agent:
             print(f"Error calling tool {tool_id}: {str(e)}")
             raise
             
-    async def close_agent_client(self, receiver_id: str) -> bool:
+    async def close_agent_client(self, session_id: str, receiver_id: str) -> bool:
         """
         Close a specific agent client.
         
@@ -539,10 +551,14 @@ class Agent:
         Returns:
             True if session was closed, False if not found
         """
-        if receiver_id in self._agent_clients:
-            client = self._agent_clients.pop(receiver_id)
+        key = (session_id, receiver_id)
+        if key in self._agent_clients:
+            client = self._agent_clients.pop(key)
             await client.close()
             return True
+        else:
+            print(f"Not existed client:{key}")
+
         return False
     
     async def close_tool_client(self, tool_id: str) -> bool:

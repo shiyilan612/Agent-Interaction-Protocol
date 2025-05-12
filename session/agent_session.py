@@ -4,6 +4,7 @@ Created on Mon Apr 21 12:00:00 2025
 
 @author: haixinwa
 """
+import uuid
 import time
 import asyncio
 import grpc
@@ -50,7 +51,10 @@ class AgentClientSession:
         self._running = False
 
     async def activate(self):
-        self.session_id = f"agent_session_{time.strftime('%Y%m%d_%H%M%S', time.localtime())}"
+        _time = str(time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+        _uuid = str(uuid.uuid4())
+        session_id = f"agent_session_{_uuid}_{_time}"
+        self.session_id = session_id
         self.active_session = asyncio.Future()
         self.response_queue = asyncio.Queue()
         self._running = True
@@ -58,7 +62,7 @@ class AgentClientSession:
         if self._receive_task is None or self._receive_task.done():
             self._receive_task = asyncio.create_task(self._handle_response())
 
-        return self
+        return session_id
 
     async def stream_responses(self):
         """obtain continuous response"""
