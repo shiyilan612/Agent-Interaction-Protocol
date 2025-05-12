@@ -148,7 +148,7 @@ class LLMAgent(Agent):
         if self.skills:
             system_prompt += f"""You have the following skills:\n"""
             for skill in self.skills:
-                system_prompt += f"- {skill.capability}\n"""
+                system_prompt += f"- {skill.capability}\n"
         return system_prompt
 
     def _prepare_llm_prompt(self,
