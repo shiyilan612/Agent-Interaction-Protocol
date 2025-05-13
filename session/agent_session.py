@@ -131,11 +131,19 @@ class AgentServerSession:
                     continue
 
                 response = await self.process_request_func(request)
+                # TODO: log
+                # print(f"Processing request: {request.content[0]._text} -> {response.content[0]._text}, status: {response.session_status}")
+                if response.session_status not in [SessionStatus.HOLD_RESPONSE, SessionStatus.STOP_RESPONSE]:
+                    # print("Invalid session status in response")
+                    raise RuntimeError(f"Invalid session status in response: {response.session_status}")
+                    
                 await self.response_queue.put(response)
 
                 # flag done
                 self.request_queue.task_done()
-
+        except RuntimeError as e:
+            await self.response_queue.put(e)
+            raise
         except asyncio.CancelledError:
             pass
         finally:
@@ -153,7 +161,12 @@ class AgentServerSession:
 
     async def get_response(self):
         while self._is_active or not self.response_queue.empty():
-            yield await self.response_queue.get()
+            response = await self.response_queue.get()
+            if isinstance(response, Exception):
+                print(f"Error in session {self.session_id}: {response}")
+                self.close()
+                raise response
+            yield response
 
     async def close(self):
         self._is_active = False
