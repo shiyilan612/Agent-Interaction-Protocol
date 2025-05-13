@@ -65,14 +65,13 @@ class Agent:
         
         # Store active client connections
         self._agent_clients: Dict[tuple[str, str], AgentClient] = {}
-        self._tool_clients: Dict[tuple[str, str], ToolClient] = {}
+        self._tool_clients: Dict[str, ToolClient] = {}
         
         # Gateway connection
         self._gateway_address = None
         
         # Message processing function
         self._process_request_func = None
-        self._process_response_func = None
         
         # Task management
         self._tasks: Dict[str, TaskInfo] = {}
@@ -103,31 +102,8 @@ class Agent:
         self._process_request_func = handler
         return self
     
-    def set_process_response_handler(self, handler: Callable):
-        """
-        Set the function to handle incoming responses.
-        
-        Args:
-            handler: A callable that processes AgentMessage responses
-        """
-        self._process_response_func = handler
-        return self
-    
-    # async def _default_process_request_handler(self, message: AgentMessage) -> AgentMessage:
-    #     """Default message processing function if none is provided."""
-
-    
-    # async def _default_process_response_handler(self, message: AgentMessage):
-    #     """Default response processing function if none is provided."""
-    
     async def start(self):
         """Start the agent server."""
-        # if not self._process_request_func:
-        #     self._process_request_func = self._default_process_request_handler
-            
-        # if not self._process_response_func:
-        #     self._process_response_func = self._default_process_response_handler
-        
         self._server = AgentServer(self.agent_info, self._process_request_func)
         await self._server.start()
         return self
@@ -185,7 +161,6 @@ class Agent:
         if self._server:
             return self._server._peers
         return {}
-    
     
     def create_task_info(self, parent_task_ids: List[str] = None) -> TaskInfo:
         """
@@ -274,8 +249,7 @@ class Agent:
                 content_items.append(citem)
         
         return content_items
-            
-    
+
     def create_agent_message(self, 
                            receiver_id: str, 
                            content: Union[str, bytes, List[Union[str, bytes]]],
@@ -326,13 +300,9 @@ class Agent:
         
         return message
 
-    async def create_client(self, receiver_id):
-        client = AgentClient(self._process_response_func)
-        session_id = await client.start(
-            self._gateway_address,
-            GatewayServiceStub,
-            "RouteAgentCalling"
-        )
+    async def create_agent_client(self, receiver_id, stub=GatewayServiceStub, stream_calling="RouteAgentCalling"):
+        client = AgentClient()
+        session_id = await client.start(self._gateway_address, stub, stream_calling)
         self._agent_clients[(session_id, receiver_id)] = client
 
         async def _wait_client_end_up(session_id, receiver_id):
@@ -350,7 +320,7 @@ class Agent:
                            content: Union[str, bytes, List[Union[str, bytes]]],
                            content_mode: Optional[Union[Mode, List[Mode]]] = None,
                            session_status: SessionStatus = None,
-                           task_info: TaskInfo = None):
+                           task_info: TaskInfo = None) -> AgentMessage:
         """
         Send a message to another agent through the gateway.
         
@@ -383,9 +353,11 @@ class Agent:
         elif session_status == SessionStatus.START_QUEST:
             if client.occupied:
                 raise RuntimeError(f"Cannot start quest in an occupied client session")
-        else:
+        elif session_status in [SessionStatus.HOLD_QUEST, SessionStatus.STOP_QUEST]:
             if not client.occupied:
-                raise RuntimeError(f"Cannot send {session_status} in a not occupied client session")
+                raise RuntimeError(f"Cannot send {session_status} in an unoccupied client session")
+        else:
+            raise RuntimeError(f"Not supported session status: {session_status}")
 
         # Create task info if not provided
         if not task_info:
@@ -402,6 +374,8 @@ class Agent:
         )
         
         await client.send_message(message)
+
+        return await client.response_queue.get()
 
     def create_tool_request(self, 
                            receiver_id: str, 
@@ -434,8 +408,6 @@ class Agent:
         )
         
         return request
-    
-
 
     async def call_tool(self, 
                         tool_id: str, 

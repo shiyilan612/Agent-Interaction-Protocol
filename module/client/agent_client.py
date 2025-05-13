@@ -6,30 +6,30 @@ Created on Mon Apr 21 12:00:00 2025
 """
 import grpc
 import asyncio
-from typing import Callable
 from grpc_service.type import AgentMessage, SessionStatus
 from session import AgentClientSession
 
 
 class AgentClient:
-    def __init__(self, process_response_func: Callable):
+    def __init__(self):
         self.channel = None
         self.session = None
         self._response_task = None
-        self.process_response_func = process_response_func
         self.occupied = False
+        self.response_queue = None
 
     async def _process_responses(self):
         async for response in self.session.stream_responses():
-            await self.process_response_func(response)
+            await self.response_queue.put(response)
 
-    async def start(self, server_address, stub, callable_func="CallAgent"):
+    async def start(self, server_address, stub, stream_calling):
         self.channel = grpc.aio.insecure_channel(server_address)
         await self.channel.channel_ready()
-        stream_stream_call = getattr(stub(self.channel), callable_func)()
+        stream_stream_call = getattr(stub(self.channel), stream_calling)()
         self.session = AgentClientSession(stream_stream_call)
         session_id = await self.session.activate()
         self._response_task = asyncio.create_task(self._process_responses())
+        self.response_queue = asyncio.Queue()
 
         return session_id
 
