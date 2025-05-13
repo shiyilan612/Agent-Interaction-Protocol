@@ -142,6 +142,7 @@ class AgentService(AgentServiceServicer):
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # Handle BrokenPipeError
                 pass
+            raise
         except Exception as e:
             print(f"Other exception: {str(e)}")
 
