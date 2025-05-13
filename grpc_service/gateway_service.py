@@ -10,7 +10,7 @@ Created on Wed Apr 16 15:00:00 2025
 import grpc
 import uuid
 import asyncio
-from typing import Dict, Union, AsyncIterable
+from typing import Dict, Union, AsyncIterable, Set
 from .utils import ConnectionPool
 
 # Import the generated proto modules
@@ -28,6 +28,8 @@ class GatewayService(GatewayServiceServicer):
 
         # init registry dict
         self._registry: Dict[str, Union[pb2.AgentInfo, pb2.ToolInfo]] = {}
+        
+        self._registered_addresses: Set[str] = set()
 
         # gRPC server for this tool service
         self._server = None
@@ -123,6 +125,7 @@ class GatewayService(GatewayServiceServicer):
             print(f"<GW>: Try to remove Node {node_id} but not found in registry.")
         else:
             del self._registry[node_id]
+            self._registered_addresses.discard(node_info.address)
             await self._connection_pool.close_stub(node_info.address)
             print(f"<GW>: Node {node_id} removed from registry and connection closed.")
 
@@ -156,8 +159,22 @@ class GatewayService(GatewayServiceServicer):
     async def RegisterAgent(self,
                             request: pb2.AgentInfo,
                             context: grpc.aio.ServicerContext) -> pb2.RegisterAgentResponse:
+        if request.agent_id in self._registry:
+            print(f"<GW>: Agent {request.agent_id} already registered.")
+            context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+            context.set_details(f"Agent {request.agent_id} already registered.")
+            
+            return
 
+        if request.address in self._registered_addresses:
+            print(f"<GW>: Address {request.address} already registered.")
+            context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+            context.set_details(f"Address {request.address} already registered.")
+            
+            return
+        
         self._registry[request.agent_id] = request
+        self._registered_addresses.add(request.address)
         await self._connection_pool.create_stub(request.address, AgentServiceStub)
         print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
 
@@ -171,9 +188,25 @@ class GatewayService(GatewayServiceServicer):
     async def RegisterTool(self,
                            request: pb2.ToolInfo,
                            context: grpc.aio.ServicerContext) -> pb2.RegisterToolResponse:
+        if request.tool_id in self._registry:
+            print(f"<GW>: Tool {request.tool_id} already registered.")
+            context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+            context.set_details(f"Tool {request.tool_id} already registered.")
+            
+            return
+
+        if request.address in self._registered_addresses:
+            print(f"<GW>: Address {request.address} already registered.")
+            context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+            context.set_details(f"Address {request.address} already registered.")
+            
+            return
+        
         self._registry[request.tool_id] = request
+        self._registered_addresses.add(request.address)
         await self._connection_pool.create_stub(request.address, ToolServiceStub)
         print(f"<GW>: Register {request.tool_id} (addr in {request.address})")
+        
         return pb2.RegisterToolResponse(
             success=True
         )
