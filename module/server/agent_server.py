@@ -56,6 +56,11 @@ class AgentServer(AgentService):
         try:
             async for response in session.get_response():
                 yield response.to_grpc()
+        except RuntimeError as e:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"{str(e)}")
+            
+            return
         finally:
             receive_task.cancel()
             await self.session_mgr.close_session(client_session_id)
