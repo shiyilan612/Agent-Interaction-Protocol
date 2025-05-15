@@ -87,9 +87,9 @@ class GatewayHost(GatewayService):
                     # close the session if the response is STOP_RESPONSE
                     break
         except grpc.RpcError as e:
-            self._logger.error(f"<GW> [AgentMessage {receiver_id} -> {sender_id}] Failed to get "
-                                f"response in session [{session.session_id}]"
-                                f". RPC Error: {e.code()}, details: {e.details()}")
+            self._logger.error(f"<GW> [AgentMessage {receiver_id} -> {sender_id}] Error happened"
+                                f" in session [{session.session_id}]. "
+                                f"RPC Error: {e.code()}, details: {e.details()}")
             context.set_code(e.code())
             context.set_details(e.details())
             # delete failed node
@@ -109,19 +109,11 @@ class GatewayHost(GatewayService):
         Returns:
             AsyncIterable[pb2.AgentMessage]: The response from the receiver.
         """
+        # route the message to the receiver by session
+        await session.enqueue_forward_message(message)
+        self._logger.info(f"<GW>: [AgentMessage {message.receiver_id} -> {message.sender_id}]"
+                            f" Route request in session [{session.session_id}]")
 
-        try:
-            # route the message to the receiver by session
-            await session.enqueue_forward_message(message)
-            self._logger.info(f"<GW>: [AgentMessage {message.receiver_id} -> {message.sender_id}]"
-                              f" Route request in session [{session.session_id}]")
-
-        # TODO: 如何抛出发送异常？
-        except grpc.RpcError as e:
-            receiver_info = await super().get_node_info(message.receiver_id)
-            print(f"<GW>: Forwarding to Agent {message.receiver_id} (address: {receiver_info.address}) failed: {e.code()}")
-            # delete failed node
-            await super().deregister_node(message.receiver_id)
             
     async def RouteToolCalling(self,
                                request: pb2.ToolRequest,
@@ -154,7 +146,6 @@ class GatewayHost(GatewayService):
             return response
 
         except grpc.RpcError as e:
-            receiver_info = await super().get_node_info(request.receiver_id)
             self._logger.error(f"<GW>: [ToolResponse {sender_id} -> {receiver_id}] Route "
                   f"ToolCalling failed: RPC Error: {e.code()}, details: {e.details()}")
             # delete failed node

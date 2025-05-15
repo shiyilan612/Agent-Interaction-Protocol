@@ -59,10 +59,7 @@ class GatewaySession:
 
     async def send(self, message: AgentMessage):
         """Send a message to stream."""
-        try:
-            await self.stream_stream_call.write(message.to_grpc())
-        except Exception as e:
-            raise RuntimeError(f"Failed to send message: {e}")
+        await self.stream_stream_call.write(message.to_grpc())
         
     async def _process_forward_queue(self):
         """Forward messages from the send queue to the stream."""
@@ -74,6 +71,11 @@ class GatewaySession:
                     continue
                 await self.send(message)
                 self.forward_queue.task_done()
+        except grpc.RpcError as e:
+            self._logger.debug(f"<GW>: Session {self.session_id} forward stream call RPC error"
+                               f": {e.code()}, details: {e.details()}")
+            await self.response_queue.put(e)
+            raise
         except asyncio.CancelledError:
             raise
         finally:
@@ -90,7 +92,7 @@ class GatewaySession:
             async for response in self.stream_stream_call:
                 await self.response_queue.put(AgentMessage.from_grpc(response))
         except grpc.RpcError as e:
-            self._logger.debug(f"<GW session {self.session_id}> stream call error: {e.code()}, "
+            self._logger.debug(f"<GW>: Session [{self.session_id}] get response error: {e.code()}, "
                                f"details: {e.details()}")
             await self.response_queue.put(e)
             raise
