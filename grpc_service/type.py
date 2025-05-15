@@ -260,6 +260,20 @@ class RegisterAgentResponse:
             peers=[Peer.from_grpc(peer) for peer in grpc_obj.peers]
         )
 
+class DeregisterAgentResponse:
+    def __init__(self, success: bool):
+        self.success = success
+
+    def to_grpc(self) -> pb2.DeregisterAgentResponse:
+        return pb2.DeregisterAgentResponse(
+            success = self.success,
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.DeregisterAgentResponse) -> 'DeregisterAgentResponse':
+        return cls(
+            success=grpc_obj.success
+        )
 
 class ToolInfo:
     def __init__(
@@ -326,7 +340,21 @@ class RegisterToolResponse:
         return cls(
             success=grpc_obj.success
         )
+        
+class DeregisterToolResponse:
+    def __init__(self, success: bool):
+        self.success = success
 
+    def to_grpc(self) -> pb2.DeregisterToolResponse:
+        return pb2.DeregisterToolResponse(
+            success = self.success
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.DeregisterToolResponse) -> 'DeregisterToolResponse':
+        return cls(
+            success=grpc_obj.success
+        )
 
 class GetNodesRequest:
     def __init__(self, agent_id: str, domain: str):

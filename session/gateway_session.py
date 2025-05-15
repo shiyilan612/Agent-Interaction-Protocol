@@ -7,13 +7,16 @@ Created on Sun Apr 27 16:25:37 2025
 
 import asyncio
 import grpc
+import logging
 from typing import Dict, Union
 from grpc_service import AgentServiceStub, GatewayServiceStub
 from grpc_service.type import AgentMessage
+from logger import LoggerManager
 
 class GatewaySession:
     """A Gateway session to manage one stream for communication between Agents"""
-    def __init__(self, session_id: str=None, 
+    def __init__(self, logger: logging.Logger,
+                 session_id: str=None, 
                  sender_id: str=None, 
                  receiver_id: str=None, 
                  stream_stream_call=None, 
@@ -22,6 +25,7 @@ class GatewaySession:
         Initialize a new Gateway route session.
 
         Args:
+            logger: Logger instance for logging.
             session_id (str): The session ID.
             sender_id (str): The sender ID.
             receiver_id (str): The receiver ID.
@@ -38,6 +42,7 @@ class GatewaySession:
         self._is_active = False
         self._forward_task = None
         self._response_task = None
+        self._logger = logger
         
     async def activate(self):
         self._is_active = True
@@ -55,7 +60,6 @@ class GatewaySession:
     async def send(self, message: AgentMessage):
         """Send a message to stream."""
         try:
-            # print(f"STREAM send message: {message.content[0]._text}")
             await self.stream_stream_call.write(message.to_grpc())
         except Exception as e:
             raise RuntimeError(f"Failed to send message: {e}")
@@ -71,7 +75,6 @@ class GatewaySession:
                 await self.send(message)
                 self.forward_queue.task_done()
         except asyncio.CancelledError:
-            # print(f"<GW session {self.session_id}> forward queue canceled")
             raise
         finally:
             pass
@@ -80,20 +83,18 @@ class GatewaySession:
         """Put a message into the forward queue."""
         if self._is_active:
             await self.forward_queue.put(AgentMessage.from_grpc(message))
-            # print(f"Enqueue message: {AgentMessage.from_grpc(message).content[0]._text} into forward queue")
             
     async def _process_incoming_responses(self):
         """Get incoming responses from stream and put them into response queue"""
         try:
             async for response in self.stream_stream_call:
-                # print(f"Received response from stream: {AgentMessage.from_grpc(response).content[0]._text}")
                 await self.response_queue.put(AgentMessage.from_grpc(response))
         except grpc.RpcError as e:
-            print(f"<GW session {self.session_id}> stream call error: {e.code()}, details: {e.details()}")
-            await self.response_queue.put(None)
+            self._logger.debug(f"<GW session {self.session_id}> stream call error: {e.code()}, "
+                               f"details: {e.details()}")
+            await self.response_queue.put(e)
             raise
         except asyncio.CancelledError:
-            # print(f"<GW session {self.session_id}> incoming queue canceled")
             raise
         finally:
             pass
@@ -102,18 +103,17 @@ class GatewaySession:
         """Get a message from response queue"""
         while self._is_active or not self.response_queue.empty():
             response: AgentMessage = await self.response_queue.get()
-            if not response and self._response_task.done():
-                if self._response_task.exception():
-                    raise self._response_task.exception()
-            # print(f"Get response from queue: {response.content[0]._text}")
+            if isinstance(response, Exception):
+                raise self._response_task.exception()
             yield response
 
 class GatewaySessionMagager:
     """Session manager of Gateway host"""
 
-    def __init__(self):
+    def __init__(self, logger: logging.Logger):
         self.route_sessions: Dict[str, GatewaySession] = {}
         self._lock = asyncio.Lock()
+        self._logger = logger
 
     async def create_or_get_session(self,
                                     session_id: str,
@@ -136,12 +136,15 @@ class GatewaySessionMagager:
             if session := self.route_sessions.get(session_id):
                 return session
             stream_stream_call = getattr(stub, callable_func)()
-            new_session = GatewaySession(session_id=session_id, 
+            new_session = GatewaySession(logger=self._logger, 
+                                         session_id=session_id, 
                                          sender_id=sender_id, 
                                          receiver_id=receiver_id, 
                                          stream_stream_call=stream_stream_call)
             await new_session.activate()
             self.route_sessions[session_id] = new_session
+            self._logger.info(f"<GW>: Session [{session_id}] created for [Agent {sender_id}"
+                              f" -> {receiver_id}]")
 
             return new_session
 

@@ -52,6 +52,10 @@ message RegisterAgentResponse { // Agent注册响应信息
   repeated Peer peers = 2;
 }
 
+message DeregisterAgentResponse { // Agent取消注册响应信息
+  bool success = 1;
+}
+
 message ToolInfo {  // Tool注册信息
   string tool_id = 1;
   string address = 2;
@@ -68,6 +72,9 @@ message RegisterToolResponse { // Tool注册响应信息
   bool success = 1;
 }
 
+message DeregisterToolResponse { // Tool取消注册响应信息
+  bool success = 1;
+}
 
 /* 节点清单获取 */
 message GetNodesRequest {
@@ -154,8 +161,14 @@ service GatewayService {
   // Agent注册,返回节点清单
   rpc RegisterAgent(AgentInfo) returns (RegisterAgentResponse) {};
 
+  // Agent取消注册
+  rpc DeregisterAgent(AgentInfo) returns (DeregisterAgentResponse) {};
+
   // Tool注册
   rpc RegisterTool(ToolInfo) returns (RegisterToolResponse) {};
+
+  // Tool取消注册
+  rpc DeregisterTool(ToolInfo) returns (DeregisterToolResponse) {};
 
   // Agent获取节点清单
   rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};

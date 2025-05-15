@@ -10,7 +10,7 @@ from typing import Dict, List, Union
 
 from grpc_service.type import AgentInfo, ToolInfo
 from module.host import GatewayHost
-
+from logger import LoggerManager
 
 class Gateway:
     """
@@ -33,6 +33,9 @@ class Gateway:
 
         # Create the gateway service
         self._host = None
+        
+        self._logger_mgr = LoggerManager()
+        self._logger = self._logger_mgr.get_logger(self.gateway_id)
 
     async def start(self):
         """Start the gateway server."""
@@ -40,8 +43,6 @@ class Gateway:
 
         # Start the server
         await self._host.start()
-
-        print(f"Gateway {self.gateway_id} started on {self.address}")
 
     async def stop(self):
         """Stop the gateway server."""

@@ -10,6 +10,7 @@ Created on Fri Apr 18 10:01:08 2025
 import grpc
 import asyncio
 from .utils import ConnectionPool
+from logger import LoggerManager
 
 # Import the generated proto modules
 from .schema_pb2_grpc import ToolServiceServicer, add_ToolServiceServicer_to_server
@@ -45,15 +46,18 @@ class ToolService(ToolServiceServicer):
 
         # gRPC server for this tool service
         self._server = None
+        
+        self._logger_mgr = LoggerManager()
+        self._logger = self._logger_mgr.get_logger(self.tool_id)
 
         # stubs of nodes connected to this tool service
-        self._connection_pool = ConnectionPool()
-
+        self._connection_pool = ConnectionPool(self._logger)
+        
     async def _handle_server_termination(self):
         try:
             await self._server.wait_for_termination()
         except Exception as e:
-            print(f"Error during server termination: {e}")
+            self._logger.error(f"<Tool>: Error during gRPC server termination: {e}")
         finally:
             await self._server.stop(1)
 
@@ -82,7 +86,7 @@ class ToolService(ToolServiceServicer):
         add_ToolServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        print(f"<{self.tool_id}>: Tool {self.tool_id} started on {self.address}")
+        self._logger.info(f"<Tool>: Tool [{self.tool_id}] started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         return self
@@ -91,7 +95,7 @@ class ToolService(ToolServiceServicer):
         """Stop the tool service gRPC server."""
         if self._server:
             await self._server.stop(grace=None)
-            print(f"Tool service at {self.address} stopped")
+            self._logger.info(f"<Tool>: Tool service [{self.tool_id}] at [{self.address}] stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
 
@@ -108,12 +112,15 @@ class ToolService(ToolServiceServicer):
         try:
             # Register Tool with gateway
             response = await stub.RegisterTool(self.tool_info)
-            print(f"<{self.tool_id}>: RegisterResponse from Gateway ({gateway_address})")
+            self._logger.info(f"<Tool>: Register {'successed' if response else 'failed'} "
+                              f"to Gateway ({gateway_address})")
         except grpc.aio.AioRpcError as e:
-            print(f"RPC Error: {e.details()}")
+            self._logger.error(f"<Tool>: Register failed to Gateway ({gateway_address}). "
+                               f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # Handle BrokenPipeError
                 pass
             raise
         except Exception as e:
-            print(f"Other exception: {str(e)}")
+            self._logger.error(f"<Tool>: Register failed to Gateway ({gateway_address}). "
+                               f"Other exception: {str(e)}")

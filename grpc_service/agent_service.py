@@ -11,6 +11,7 @@ import grpc
 import asyncio
 from typing import Dict, Union, AsyncIterable, List
 from .utils import ConnectionPool
+from logger import LoggerManager
 
 # Import the generated proto modules
 from .schema_pb2_grpc import AgentServiceServicer, add_AgentServiceServicer_to_server
@@ -51,9 +52,12 @@ class AgentService(AgentServiceServicer):
         # gRPC server for this tool service
         self._server = None
 
+        self._logger_mgr = LoggerManager()
+        self._logger = self._logger_mgr.get_logger(self.agent_id)
+        
         # stubs of nodes connected to this tool service
-        self._connection_pool = ConnectionPool()
-
+        self._connection_pool = ConnectionPool(self._logger)
+        
     async def _update_peers(self, new_peers):
         """
         Update the list of peers with new information.
@@ -76,7 +80,7 @@ class AgentService(AgentServiceServicer):
         try:
             await self._server.wait_for_termination()
         except Exception as e:
-            print(f"Error during server termination: {e}")
+            self._logger.error(f"<Agent>: Error during gRPC server termination: {e}")
         finally:
             await self._server.stop(1)
 
@@ -106,7 +110,7 @@ class AgentService(AgentServiceServicer):
         add_AgentServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        print(f"<{self.agent_id}>: Agent {self.agent_id} started on {self.address}")
+        self._logger.info(f"<Agent>: Agent [{self.agent_id}] started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         return self
@@ -115,7 +119,8 @@ class AgentService(AgentServiceServicer):
         """Stop the Agent service gRPC server."""
         if self._server:
             await self._server.stop(grace=None)
-            print(f"Agent service at {self.address} stopped")
+            self._logger.info(f"<Agent>: Agent service [{self.agent_id}] at [{self.address}] "
+                              f"stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
 
@@ -135,17 +140,20 @@ class AgentService(AgentServiceServicer):
 
             await self._update_peers(response.peers) # update peers
 
-            print(f"<{self.agent_id}>: RegisterResponse from GW ({gateway_address})")
+            self._logger.info(f"<Agent>: Register {'successed' if response else 'failed'} "
+                              f"to Gateway ({gateway_address})")
 
         except grpc.aio.AioRpcError as e:
-            print(f"RPC Error: {e.details()}")
+            self._logger.error(f"<Agent>: Register failed to Gateway ({gateway_address}). "
+                               f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # Handle BrokenPipeError
                 pass
             raise
         except Exception as e:
-            print(f"Other exception: {str(e)}")
-
+            self._logger.error(f"<Agent>: Register failed to Gateway ({gateway_address}). "
+                               f"Other exception: {str(e)}")
+            
     async def get_gateway_node(self, domain: str = 'default'):
         """
         Get the list of nodes registered with the gateway.
@@ -162,12 +170,15 @@ class AgentService(AgentServiceServicer):
             # load peers
             await self._update_peers(response.peers)  # update peers
 
-            print(f"<{self.agent_id}>: Update peers from GW ({self._gateway_address})")
+            self._logger.info(f"<Agent>: Update peers from GW ({self._gateway_address})")
 
         except grpc.aio.AioRpcError as e:
-            print(f"RPC Error: {e.details()}")
+            self._logger.error(f"<Agent>: Failed to get nodes info from Gateway "
+                               f"({self._gateway_address}). "
+                               f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # 处理 BrokenPipeError
                 pass
         except Exception as e:
-            print(f"其他异常: {str(e)}")
+            self._logger.error(f"<Agent>: Failed to get nodes info from Gateway "
+                               f"({self._gateway_address}). Other exception: {str(e)}")

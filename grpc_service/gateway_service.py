@@ -12,6 +12,7 @@ import uuid
 import asyncio
 from typing import Dict, Union, AsyncIterable, Set
 from .utils import ConnectionPool
+from logger import LoggerManager
 
 # Import the generated proto modules
 from .schema_pb2_grpc import GatewayServiceServicer, add_GatewayServiceServicer_to_server
@@ -33,10 +34,13 @@ class GatewayService(GatewayServiceServicer):
 
         # gRPC server for this tool service
         self._server = None
+        
+        self._logger_mgr = LoggerManager()
+        self._logger = self._logger_mgr.get_logger(self.gateway_id)
 
         # stubs of nodes connected to this tool service
-        self._connection_pool = ConnectionPool()
-
+        self._connection_pool = ConnectionPool(self._logger)
+        
     async def _forward_agent_message(self, message: pb2.AgentMessage) -> AsyncIterable[pb2.AgentMessage]:
         """Route agent message to the receiver.
 
@@ -89,7 +93,8 @@ class GatewayService(GatewayServiceServicer):
             node_id (str): node id
 
         Returns:
-            node_info (Union[pb2.AgentInfo, pb2.AgentInfo, None]): node info if the node ID is found; otherwise, None
+            node_info (Union[pb2.AgentInfo, pb2.AgentInfo, None]): 
+            node info if the node ID is found; otherwise, None
         """
         node_info = self._registry.get(node_id)
         if not node_info:
@@ -104,7 +109,8 @@ class GatewayService(GatewayServiceServicer):
             node_id (str): node id
 
         Returns:
-            stub (Union[AgentServiceStub, ToolServiceStub, GatewayServiceStub, None]): stub if the node ID is found; otherwise, None
+            stub (Union[AgentServiceStub, ToolServiceStub, GatewayServiceStub, None]): 
+            stub if the node ID is found; otherwise, None
         """
         node_info = await self.get_node_info(node_id)
         if not node_info:
@@ -122,18 +128,18 @@ class GatewayService(GatewayServiceServicer):
         """
         node_info = await self.get_node_info(node_id)
         if not node_info:
-            print(f"<GW>: Try to remove Node {node_id} but not found in registry.")
+            self._logger.warning(f"<GW>: Try to remove node [{node_id}] but not found in registry.")
         else:
             del self._registry[node_id]
             self._registered_addresses.discard(node_info.address)
             await self._connection_pool.close_stub(node_info.address)
-            print(f"<GW>: Node {node_id} removed from registry and connection closed.")
+            self._logger.info(f"<GW>: Remove node [{node_id}] from registry. Connection terminated.")
 
     async def _handle_server_termination(self):
         try:
             await self._server.wait_for_termination()
         except Exception as e:
-            print(f"Error during server termination: {e}")
+            self._logger.error(f"<GW>: Error during gRPC server termination: {e}")
         finally:
             await self._server.stop(1)
 
@@ -147,36 +153,49 @@ class GatewayService(GatewayServiceServicer):
             context (grpc.aio.ServicerContext): The gRPC context.
             
         Returns:
-            AsyncIterable[pb2.AgentMessage]: The response from the receiver."""
+            AsyncIterable[pb2.AgentMessage]: The response from the receiver.
+        """
         pass
 
     async def RouteToolCalling(self,
                                request: pb2.ToolRequest,
                                context: grpc.aio.ServicerContext) -> pb2.ToolResponse:
-        response = await self._forward_tool_request(request)
-        return response
+        """Route tool request to the receiver.
+        
+        Args:
+            request (pb2.ToolRequest): The tool request to be routed.
+            context (grpc.aio.ServicerContext): The gRPC context.
+            
+        Returns:
+            pb2.ToolResponse: The response from the receiver.
+        """
+        pass
 
     async def RegisterAgent(self,
                             request: pb2.AgentInfo,
                             context: grpc.aio.ServicerContext) -> pb2.RegisterAgentResponse:
-        if request.agent_id in self._registry:
-            print(f"<GW>: Agent {request.agent_id} already registered.")
+        agent_id = request.agent_id
+        address = request.address
+        
+        if agent_id in self._registry:
+            self._logger.error(f"<GW>: Try to register an already registered Agent [{agent_id}].")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
-            context.set_details(f"Agent {request.agent_id} already registered.")
+            context.set_details(f"Agent [{agent_id}] already registered.")
             
             return
 
-        if request.address in self._registered_addresses:
-            print(f"<GW>: Address {request.address} already registered.")
+        if address in self._registered_addresses:
+            self._logger.error(f"<GW>: Agent [{agent_id}] Try to register an already "
+                                f"registered address [{address}].")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
-            context.set_details(f"Address {request.address} already registered.")
+            context.set_details(f"Address [{address}] already registered.")
             
             return
         
-        self._registry[request.agent_id] = request
-        self._registered_addresses.add(request.address)
-        await self._connection_pool.create_stub(request.address, AgentServiceStub)
-        print(f"<GW>: Register {request.agent_id} (addr in {request.address})")
+        self._registry[agent_id] = request
+        self._registered_addresses.add(address)
+        await self._connection_pool.create_stub(address, AgentServiceStub)
+        self._logger.info(f"<GW>: Register Agent [{agent_id}] (addr in {address})")
 
         peers = await self._collect_node_peers()  # collect peers
 
@@ -188,24 +207,28 @@ class GatewayService(GatewayServiceServicer):
     async def RegisterTool(self,
                            request: pb2.ToolInfo,
                            context: grpc.aio.ServicerContext) -> pb2.RegisterToolResponse:
-        if request.tool_id in self._registry:
-            print(f"<GW>: Tool {request.tool_id} already registered.")
+        tool_id = request.tool_id
+        address = request.address
+        
+        if tool_id in self._registry:
+            self._logger.error(f"<GW>: Try to register an already registered Tool [tool_id].")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
-            context.set_details(f"Tool {request.tool_id} already registered.")
+            context.set_details(f"Tool [{tool_id}] already registered.")
             
             return
 
-        if request.address in self._registered_addresses:
-            print(f"<GW>: Address {request.address} already registered.")
+        if address in self._registered_addresses:
+            self._logger.error(f"<GW>: Tool [{tool_id}] Try to register an already "
+                                f"registered address [{address}].")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
-            context.set_details(f"Address {request.address} already registered.")
+            context.set_details(f"Address [{address}] already registered.")
             
             return
         
-        self._registry[request.tool_id] = request
-        self._registered_addresses.add(request.address)
-        await self._connection_pool.create_stub(request.address, ToolServiceStub)
-        print(f"<GW>: Register {request.tool_id} (addr in {request.address})")
+        self._registry[tool_id] = request
+        self._registered_addresses.add(address)
+        await self._connection_pool.create_stub(address, ToolServiceStub)
+        self._logger.info(f"<GW>: Register Tool [{tool_id}] (addr in {address})")
         
         return pb2.RegisterToolResponse(
             success=True
@@ -215,7 +238,7 @@ class GatewayService(GatewayServiceServicer):
                        request: pb2.GetNodesRequest,
                        context: grpc.aio.ServicerContext) -> pb2.GetNodesResponse:
 
-        print(f"<GW>: Agent {request.agent_id} request nodes info")
+        self._logger.info(f"<GW>: Agent [{request.agent_id}] requests nodes info")
         peers = await self._collect_node_peers(request.domain)  # collect peers
 
         return pb2.GetNodesResponse(
@@ -227,7 +250,7 @@ class GatewayService(GatewayServiceServicer):
         add_GatewayServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        print(f"<{self.gateway_id}>: Gateway {self.gateway_id} started on {self.address}")
+        self._logger.info(f"<GW>: Gateway [{self.gateway_id}] started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         return self
@@ -236,6 +259,7 @@ class GatewayService(GatewayServiceServicer):
         """Stop the Gateway service gRPC server."""
         if self._server:
             await self._server.stop(grace=None)
-            print(f"Gateway service at {self.address} stopped")
+            self._logger.info(f"<GW>: Gateway service [{self.gateway_id}] at "
+                              f"[{self.address}] stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()

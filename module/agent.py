@@ -16,6 +16,7 @@ from grpc_service import AgentServiceStub, GatewayServiceStub, ToolServiceStub
 from module.client import AgentClient
 from module.server import AgentServer
 from module.client import ToolClient
+from logger import LoggerManager
 
 
 class Agent:
@@ -76,6 +77,9 @@ class Agent:
         # Task management
         self._tasks: Dict[str, TaskInfo] = {}
         self._task_counter = 0
+        
+        self._logger_mgr = LoggerManager()
+        self._logger = self._logger_mgr.get_logger(self.agent_id)
         
     def _create_agent_info(self) -> AgentInfo:
         """Create an AgentInfo object for registration with the gateway."""
@@ -458,11 +462,11 @@ class Agent:
                 
         except TimeoutError:
             # Handle timeout specifically
-            print(f"Tool call to {tool_id} timed out")
+            self._logger.error(f"<Agent>: Tool call to [{tool_id}] timed out")
             raise
         except Exception as e:
             # Handle other exceptions
-            print(f"Error calling tool {tool_id}: {str(e)}")
+            self._logger.error(f"<Agent>: Error calling tool [{tool_id}]: {str(e)}")
             raise
             
     async def close_agent_client(self, session_id: str, receiver_id: str) -> bool:
@@ -481,7 +485,7 @@ class Agent:
             await client.close()
             return True
         else:
-            print(f"Not existed client:{key}")
+            self._logger.warning(f"<Agent>: Try to close a not existed client: {key}")
 
         return False
     

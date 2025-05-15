@@ -16,7 +16,7 @@ from session import AgentServerSessionManager
 class AgentServer(AgentService):
     def __init__(self, agent_info: AgentInfo, process_request_func: Callable):
         super().__init__(agent_info.to_grpc())
-        self.session_mgr = AgentServerSessionManager()
+        self.session_mgr = AgentServerSessionManager(self._logger)
         self.process_request_func = process_request_func
 
     async def CallAgent(self, request_iterator, context):
@@ -24,20 +24,32 @@ class AgentServer(AgentService):
         try:
             _first_message = await request_iterator.__aiter__().__anext__()
             first_message = AgentMessage.from_grpc(_first_message)
+            
+            sender_id = first_message.sender_id
+            receiver_id = first_message.receiver_id
+            
+            self._logger.info(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
+                               f"Received request")
 
             if first_message.session_status != SessionStatus.START_QUEST:
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details("First message must be START_QUEST")
+                self._logger.error(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
+                               f"First message is not START_QUEST")
                 return
 
             client_session_id = first_message.session_id
             if not client_session_id:
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details("Missing session_id in START_QUEST")
+                self._logger.error(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
+                               f"Missing session_id in START_QUEST")
                 return
 
             # initialize the server session using the client session id
-            session = await self.session_mgr.create_or_get_session(client_session_id, self.process_request_func)
+            session = await self.session_mgr.create_or_get_session(session_id=client_session_id, 
+                                                                   client_id=sender_id,
+                                                                   process_request_func=self.process_request_func)
 
         except StopAsyncIteration:
             context.set_code(grpc.StatusCode.ABORTED)
@@ -49,14 +61,21 @@ class AgentServer(AgentService):
         async def receive_requests():
             await session.put_request(first_message)
             async for request in request_iterator:
+                self._logger.info(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
+                               f"Received request")
                 await session.put_request(AgentMessage.from_grpc(request))
 
         receive_task = asyncio.create_task(receive_requests())
 
         try:
             async for response in session.get_response():
+                self._logger.info(f"<Agent>: [AgentMessage {receiver_id} -> {sender_id}] "
+                               f"Send response")
                 yield response.to_grpc()
         except RuntimeError as e:
+            self._logger.error(f"<Agent> Failed to get response for client Agnet [{sender_id}]"
+                                f" in session [{session.session_id}]"
+                                f". INTERNAL Error: {e.code()}, details: {e.details()}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"{str(e)}")
             
@@ -64,3 +83,4 @@ class AgentServer(AgentService):
         finally:
             receive_task.cancel()
             await self.session_mgr.close_session(client_session_id)
+            self._logger.info(f"<Agent>: Session [{session.session_id}] closed")
