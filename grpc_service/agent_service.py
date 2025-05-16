@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 19 20:00:00 2025
 
-@author: clleng & haixin
+@author: clleng & haixin & xmkang
 """
 
 # -*- coding: utf-8 -*-
@@ -22,7 +22,10 @@ from . import schema_pb2 as pb2
 class AgentService(AgentServiceServicer):
     """Base AgentService class for handling messages and registration with gateway."""
     
-    def __init__(self, agent_info: pb2.AgentInfo):
+    def __init__(self,
+                 agent_info: pb2.AgentInfo,
+                 heartbeat_interval: int = 10
+                 ):
         """
         Initialize a new Agent instance.
         
@@ -57,6 +60,10 @@ class AgentService(AgentServiceServicer):
         
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool(self._logger)
+
+        # Heartbeat
+        self._heartbeat_task = None
+        self.heartbeat_interval = heartbeat_interval
         
     async def _update_peers(self, new_peers):
         """
@@ -98,6 +105,35 @@ class AgentService(AgentServiceServicer):
             processed_msg (AsyncIterable[schema_pb2.AgentMessage]): Processed agent messages to be sent back.
         """
         pass
+
+    async def _send_heartbeat(self):
+        """Send periodic heartbeats to the gateway."""
+        if not self._gateway_address:
+            return
+        stub = self._connection_pool.get_stub(self._gateway_address)
+
+        while True:
+            try:
+                # Create heartbeat request
+                request = pb2.HeartbeatRequest(sender_id=self.agent_id)
+                # Send heartbeat
+                response = await stub.Heartbeat(request)
+                if not response.success:
+                    self._logger.info(f"<{self.agent_id}>: Heartbeat failed: {response.message}")
+                else:
+                    self._logger.info(f"<{self.agent_id}>: Heartbeat sent successfully")
+
+                # Wait for the next interval
+                await asyncio.sleep(self.heartbeat_interval)
+
+            except grpc.aio.AioRpcError as e:
+                self._logger.error(f"<{self.agent_id}>: Heartbeat RPC error: {e.details()}")
+                await asyncio.sleep(self.heartbeat_interval)
+            except Exception as e:
+                self._logger.error(f"<{self.agent_id}>: Heartbeat error: {str(e)}")
+                await asyncio.sleep(self.heartbeat_interval)
+
+
 
     async def start(self):
         """
@@ -144,6 +180,8 @@ class AgentService(AgentServiceServicer):
             self._logger.info(f"<Agent>: Register {'successed' if response else 'failed'} "
                               f"to Gateway ({gateway_address})")
 
+            self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
+
         except grpc.aio.AioRpcError as e:
             self._logger.error(f"<Agent>: Register failed to Gateway ({gateway_address}). "
                                f"RPC Error: {e.code()}, details: {e.details()}")
@@ -168,6 +206,14 @@ class AgentService(AgentServiceServicer):
             
             self._logger.info(f"<Agent>: Deregister {'successed' if response.success else 'failed'} "
                               f"from Gateway ({self._gateway_address})")
+
+            # Cancel heartbeat task
+            if self._heartbeat_task and not self._heartbeat_task.done():
+                self._heartbeat_task.cancel()
+                try:
+                    await self._heartbeat_task
+                except asyncio.CancelledError:
+                    pass
             
             self._gateway_address = None
 

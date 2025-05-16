@@ -2,7 +2,7 @@
 """
 Created on Mon Apr 21 13:00:00 2025
 
-@author: haixinwa
+@author: haixinwa & xmkang
 """
 
 # -*- coding: utf-8 -*-
@@ -44,6 +44,11 @@ class TaskStatus(Enum):
     WAITING = 2
     BREAK = 3
     FINISH = 4
+    
+class UpdateType(Enum):
+    ADDED = 0
+    UPDATED = 1
+    REMOVED = 2
 
 
 # -------------------- Message Define--------------------
@@ -392,6 +397,169 @@ class GetNodesResponse:
         return cls(
             peers=[Peer.from_grpc(peer) for peer in grpc_obj.peers]
         )
+
+
+class HeartbeatRequest:
+    def __init__(self, sender_id: str):
+        self.sender_id = sender_id
+
+    def to_grpc(self) -> pb2.HeartbeatRequest:
+        return pb2.HeartbeatRequest(
+            sender_id = self.sender_id
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.HeartbeatRequest) -> 'HeartbeatRequest':
+        return cls(
+            sender_id=grpc_obj.sender_id
+        )
+    
+    
+class HeartbeatResponse:
+    def __init__(self, success: bool, message: str):
+        self.success = success
+        self.message = message
+
+    def to_grpc(self) -> pb2.HeartbeatResponse:
+        return pb2.HeartbeatResponse(
+            success = self.success,
+            message = self.message
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.HeartbeatResponse) -> 'HeartbeatResponse':
+        return cls(
+            success = grpc_obj.success,
+            message = grpc_obj.message
+        )
+    
+    
+class UpdateNodeInfoRequest:
+    def __init__(self, sender_id: str, peer: Peer):
+        self.sender_id = sender_id
+        self.peer = peer
+        
+    def to_grpc(self) -> pb2.UpdateNodeInfoRequest:
+        return pb2.UpdateNodeInfoRequest(
+            sender_id = self.sender_id,
+            peer = self.peer.to_grpc()
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.UpdateNodeInfoRequest) -> 'UpdateNodeInfoRequest':
+        return cls(
+            sender_id = grpc_obj.sender_id,
+            peer = Peer.from_grpc(grpc_obj.peer)
+        )
+    
+
+class UpdateNodeInfoResponse:
+    def __init__(self, success: bool, message: str):
+        self.success = success
+        self.message = message
+
+    def to_grpc(self) -> pb2.UpdateNodeInfoResponse:
+        return pb2.UpdateNodeInfoResponse(
+            success = self.success,
+            message = self.message
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.UpdateNodeInfoResponse) -> 'UpdateNodeInfoResponse':
+        return cls(
+            success = grpc_obj.success,
+            message = grpc_obj.message
+        )
+
+
+class UpdateSubscriptionRequest:
+    def __init__(self, 
+                 subscriber_id: str, 
+                 node_ids: List[str] = list()
+    ):
+        self.subscriber_id = subscriber_id
+        self.node_ids = node_ids
+
+    def to_grpc(self) -> pb2.UpdateSubscriptionRequest:
+        return pb2.UpdateSubscriptionRequest(
+            subscriber_id = self.subscriber_id,
+            node_ids = self.node_ids
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.UpdateSubscriptionRequest) -> 'UpdateSubscriptionRequest':
+        return cls(
+            subscriber_id=grpc_obj.subscriber_id,
+            node_ids=list(grpc_obj.node_ids)
+        )
+    
+    
+class NodeUpdate:
+    def __init__(self, 
+                 node_id: str,
+                 update_type: UpdateType,
+                 peer: Optional[Peer] = None
+    ):
+        self.node_id = node_id
+        self.peer = peer
+        self.update_type = update_type
+
+    def to_grpc(self) -> pb2.NodeUpdate:
+        return pb2.NodeUpdate(
+            node_id = self.node_id,
+            peer = self.peer.to_grpc(),
+            update_type = convert_enum(self.update_type, pb2.NodeUpdate.UpdateType)
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.NodeUpdate) -> 'NodeUpdate':
+        return cls(
+            node_id = grpc_obj.node_id,
+            peer = Peer.from_grpc(grpc_obj.peer),
+            update_type = restore_enum(grpc_obj.update_type, UpdateType)
+        )
+    
+
+class UnsubscribeRequest:
+    def __init__(self, 
+                 subscriber_id: str, 
+                 node_ids: List[str] = list()
+    ):
+        self.subscriber_id = subscriber_id
+        self.node_ids = node_ids
+
+    def to_grpc(self) -> pb2.UnsubscribeRequest:
+        return pb2.UnsubscribeRequest(
+            subscriber_id = self.subscriber_id,
+            node_ids = self.node_ids
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.UnsubscribeRequest) -> 'UnsubscribeRequest':
+        return cls(
+            subscriber_id=grpc_obj.subscriber_id,
+            node_ids=list(grpc_obj.node_ids)
+        )
+
+class UnsubscribeResponse:
+    def __init__(self, success: bool, message: str):
+        self.success = success
+        self.message = message
+
+    def to_grpc(self) -> pb2.UnsubscribeResponse:
+        return pb2.UnsubscribeResponse(
+            success = self.success,
+            message = self.message
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.UnsubscribeResponse) -> 'UnsubscribeResponse':
+        return cls(
+            success = grpc_obj.success,
+            message = grpc_obj.message
+        )
+
+
 
 
 class AgentMessage:

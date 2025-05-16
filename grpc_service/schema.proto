@@ -136,6 +136,60 @@ message ToolResponse {
   repeated ContentItem content = 6;
 }
 
+
+
+/* 心跳监测 */
+message HeartbeatRequest {
+  string sender_id = 1;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+
+/* 节点更新 */
+message UpdateNodeInfoRequest {
+    string sender_id = 1;
+    Peer peer = 2;
+}
+
+message UpdateNodeInfoResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+/* 更新订阅 */
+message UpdateSubscriptionRequest {
+  string subscriber_id = 1;
+  repeated string node_ids = 2;  // If empty, subscribe to all nodes
+}
+
+/* 节点更新通知 */
+message NodeUpdate {
+  enum UpdateType {
+    ADDED = 0;
+    UPDATED = 1;
+    REMOVED = 2;
+  }
+  UpdateType update_type = 1;
+  string node_id = 2;
+  Peer peer = 3;  // Not included when update_type is REMOVED
+}
+
+/* 取消订阅 */
+message UnsubscribeRequest {
+  string subscriber_id = 1;
+  repeated string node_ids = 2;  // Nodes to unsubscribe from. If empty, unsubscribe from all nodes
+}
+
+message UnsubscribeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+
 /*  Agent服务定义 */
 service AgentService {
   // Agent之间双向流式通信接口
@@ -148,6 +202,7 @@ service ToolService {
   // Tool调用
   rpc CallTool(ToolRequest) returns (ToolResponse) {};
 }
+
 
 
 /*  网关服务定义 */
@@ -169,5 +224,20 @@ service GatewayService {
 
   // Agent获取节点清单
   rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
+  
+  // Agent和Tool心跳监测
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse) {};
+  
+  // 节点信息更新
+  rpc UpdateNodeInfo(UpdateNodeInfoRequest) returns (UpdateNodeInfoResponse) {};
+  
+  // 节点订阅更新
+  rpc SubscribeToUpdates(UpdateSubscriptionRequest) returns (stream NodeUpdate) {};
+  
+  // 节点取消订阅
+  rpc Unsubscribe(UnsubscribeRequest) returns (UnsubscribeResponse) {};
 
 }
+
+
+

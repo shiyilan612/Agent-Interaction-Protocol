@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 23 12:00:00 2025
 
-@author: haixinwa
+@author: haixinwa & xmkang
 """
 
 # -*- coding: utf-8 -*-
@@ -41,3 +41,10 @@ class ToolServer(ToolService):
                 code=grpc.StatusCode.INTERNAL,
                 details=f"Handling request failure: {str(e)}"
             )
+            
+    async def update_tool_info(self, new_tool_info):
+        """Update the tool info with the gateway"""
+        # Store the new info in the underlying service
+        self.tool_info = new_tool_info.to_grpc()
+        # The ToolService._check_tool_info_updates will detect the change
+        # and notify the gateway on the next update interval

@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 16 15:00:00 2025
 
-@author: haixinwa & clleng
+@author: haixinwa & clleng & xmkang
 """
 
 # -*- coding: utf-8 -*-
@@ -10,6 +10,7 @@ Created on Wed Apr 16 15:00:00 2025
 import grpc
 import uuid
 import asyncio
+import time
 from typing import Dict, Union, AsyncIterable, Set
 from .utils import ConnectionPool
 from logger import LoggerManager
@@ -23,7 +24,8 @@ from . import schema_pb2 as pb2
 class GatewayService(GatewayServiceServicer):
     def __init__(self, 
                  address: str,
-                 gateway_id: str = None):
+                 gateway_id: str = None,
+                 heartbeat_timeout: int = 30):
         self.address = address
         self.gateway_id = gateway_id if gateway_id else f"gateway_{str(uuid.uuid4())}"
 
@@ -40,6 +42,12 @@ class GatewayService(GatewayServiceServicer):
 
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool(self._logger)
+
+        # Heartbeat monitoring
+        self._heartbeat_monitor_task = None
+        self._last_heartbeats: Dict[str, float] = {}  # Last heartbeat timestamps
+        self.heartbeat_timeout = heartbeat_timeout  # heartbeat timeout in seconds
+        self.heartbeat_interval = heartbeat_timeout // 3  # interval time for heartbeat check
         
     async def _forward_agent_message(self, message: pb2.AgentMessage) -> AsyncIterable[pb2.AgentMessage]:
         """Route agent message to the receiver.
@@ -131,6 +139,7 @@ class GatewayService(GatewayServiceServicer):
             return False
         else:
             del self._registry[node_id]
+            del self._last_heartbeats[node_id]
             self._registered_addresses.discard(node_info.address)
             await self._connection_pool.close_stub(node_info.address)
             self._logger.info(f"<GW>: Remove node [{node_id}] from registry. Connection terminated.")
@@ -195,6 +204,10 @@ class GatewayService(GatewayServiceServicer):
         
         self._registry[agent_id] = request
         self._registered_addresses.add(address)
+
+        # Initialize heartbeat timestamp
+        self._last_heartbeats[agent_id] = time.time()
+
         await self._connection_pool.create_stub(address, AgentServiceStub)
         self._logger.info(f"<GW>: Register Agent [{agent_id}], addr in [{address}]")
 
@@ -228,6 +241,10 @@ class GatewayService(GatewayServiceServicer):
         
         self._registry[tool_id] = request
         self._registered_addresses.add(address)
+
+        # Initialize heartbeat timestamp
+        self._last_heartbeats[tool_id] = time.time()
+
         await self._connection_pool.create_stub(address, ToolServiceStub)
         self._logger.info(f"<GW>: Register Tool [{tool_id}], addr in [{address}]")
         
@@ -255,6 +272,49 @@ class GatewayService(GatewayServiceServicer):
             peers=peers
         )
 
+    async def Heartbeat(self,
+                        request: pb2.HeartbeatRequest,
+                        context: grpc.aio.ServicerContext) -> pb2.HeartbeatResponse:
+        """Handle heartbeat requests from nodes."""
+        sender_id = request.sender_id
+        if sender_id not in self._registry:
+            return pb2.HeartbeatResponse(
+                success=False,
+                message=f"Node {sender_id} not registered"
+            )
+
+        # Update heartbeat timestamp
+        self._last_heartbeats[sender_id] = time.time()
+
+        return pb2.HeartbeatResponse(
+            success=True,
+            message="Heartbeat received"
+        )
+
+    async def _monitor_heartbeats(self):
+        """Monitor heartbeats and disconnect timed-out nodes."""
+        while True:
+            try:
+                current_time = time.time()
+                nodes_to_disconnect = []
+
+                # Check all registered nodes
+                for node_id, last_heartbeat in list(self._last_heartbeats.items()):
+                    if (current_time - last_heartbeat) > self.heartbeat_timeout:
+                        self._logger.info(f"<GW>: Node {node_id} heartbeat timeout")
+                        nodes_to_disconnect.append(node_id)
+
+                # Disconnect timed-out nodes
+                for node_id in nodes_to_disconnect:
+                    await self._deregister_node(node_id)
+
+                # sleep for a while before next check
+                await asyncio.sleep(self.heartbeat_interval)
+
+            except Exception as e:
+                self._logger.error(f"Error in heartbeat monitor: {e}")
+                await asyncio.sleep(5)
+
     async def start(self):
         self._server = grpc.aio.server()
         add_GatewayServiceServicer_to_server(self, self._server)
@@ -263,10 +323,22 @@ class GatewayService(GatewayServiceServicer):
         self._logger.info(f"<GW>: Gateway [{self.gateway_id}] started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
+        # Start heartbeat monitor
+        self._heartbeat_monitor_task = asyncio.create_task(self._monitor_heartbeats())
+
         return self
 
     async def stop(self) -> None:
         """Stop the Gateway service gRPC server."""
+
+        # Cancel heartbeat monitor
+        if self._heartbeat_monitor_task and not self._heartbeat_monitor_task.done():
+            self._heartbeat_monitor_task.cancel()
+            try:
+                await self._heartbeat_monitor_task
+            except asyncio.CancelledError:
+                pass
+
         if self._server:
             await self._server.stop(grace=10.0)
             self._logger.info(f"<GW>: Gateway service [{self.gateway_id}] at "
