@@ -4,6 +4,7 @@ Created on Thur Mon Apr 24 19:00:00 2025
 
 @author: clleng
 """
+import time
 import grpc
 import asyncio
 from typing import Dict, AsyncIterable
@@ -37,6 +38,10 @@ class GatewayHost(GatewayService):
         
         sender_id = first_message.sender_id
         receiver_id = first_message.receiver_id
+
+        # Update heartbeat timestamp for the sender
+        if sender_id and sender_id in self._registry:
+            self._last_heartbeats[sender_id] = time.time()
         
         if first_message.session_status != SessionStatus.START_QUEST:
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
@@ -129,6 +134,10 @@ class GatewayHost(GatewayService):
         """
         sender_id = request.sender_id
         receiver_id = request.receiver_id
+
+        # Update heartbeat timestamp for the sender
+        if sender_id and sender_id in self._registry:
+            self._last_heartbeats[sender_id] = time.time()
         
         stub = await super().get_node_stub(request.receiver_id)
         if not stub:

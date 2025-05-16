@@ -5,6 +5,7 @@ Created on Wed Apr 23 12:00:00 2025
 @author: haixinwa
 """
 import time
+import uuid
 import asyncio
 from typing import Optional, Callable
 from grpc_service.type import ToolRequest, ToolResponse
@@ -26,7 +27,10 @@ class ToolClientSession:
         self.active_session = None
 
     async def activate(self):
-        self.session_id = f"tool_session_{time.strftime('%Y%m%d_%H%M%S', time.localtime())}"
+        _time = str(time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+        _uuid = str(uuid.uuid4())
+        session_id = f"tool_session_{_uuid}_{_time}"
+        self.session_id = session_id
         self.active_session = asyncio.Future()
         self._running = True
 

@@ -21,7 +21,9 @@ from . import schema_pb2 as pb2
 class ToolService(ToolServiceServicer):
     """Base ToolService class for handling tool requests and registration with gateway."""
     
-    def __init__(self, tool_info: pb2.ToolInfo):
+    def __init__(self,
+                 tool_info: pb2.ToolInfo,
+                 heartbeat_interval: int = 10):
         """
         Initialize a new Tool instance.
 
@@ -52,6 +54,11 @@ class ToolService(ToolServiceServicer):
 
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool(self._logger)
+
+        # Heartbeat
+        self._heartbeat_task = None
+        self.heartbeat_interval = heartbeat_interval
+
         
     async def _handle_server_termination(self):
         try:
@@ -74,6 +81,33 @@ class ToolService(ToolServiceServicer):
             ToolResponse containing the result or error
         """
         pass
+
+    async def _send_heartbeat(self):
+        """Send periodic heartbeats to the gateway."""
+        if not self._gateway_address:
+            return
+        stub = self._connection_pool.get_stub(self._gateway_address)
+
+        while True:
+            try:
+                # Create heartbeat request
+                request = pb2.HeartbeatRequest(sender_id=self.tool_id)
+                # Send heartbeat
+                response = await stub.Heartbeat(request)
+                if not response.success:
+                    self._logger.info(f"<{self.tool_id}>: Heartbeat failed: {response.message}")
+                else:
+                    self._logger.info(f"<{self.tool_id}>: Heartbeat sent successfully")
+
+                # Wait for the next interval
+                await asyncio.sleep(self.heartbeat_interval)
+
+            except grpc.aio.AioRpcError as e:
+                self._logger.error(f"<{self.tool_id}>: Heartbeat RPC error: {e.details()}")
+                await asyncio.sleep(self.heartbeat_interval)
+            except Exception as e:
+                self._logger.error(f"<{self.tool_id}>: Heartbeat error: {str(e)}")
+                await asyncio.sleep(self.heartbeat_interval)
             
     async def start(self):
         """
@@ -94,7 +128,7 @@ class ToolService(ToolServiceServicer):
     async def stop(self) -> None:
         """Stop the tool service gRPC server."""
         if self._server:
-            await self._server.stop(grace=None)
+            await self._server.stop(grace=10.0)
             await self.disconnect_from_gateway()
             self._logger.info(f"<Tool>: Tool service [{self.tool_id}] at [{self.address}] stopped")
         # Close all connections in the pool
@@ -116,6 +150,8 @@ class ToolService(ToolServiceServicer):
             
             self._logger.info(f"<Tool>: Register {'successed' if response else 'failed'} "
                               f"to Gateway ({gateway_address})")
+
+            self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
             
         except grpc.aio.AioRpcError as e:
             self._logger.error(f"<Tool>: Register failed to Gateway ({gateway_address}). "
@@ -141,7 +177,15 @@ class ToolService(ToolServiceServicer):
             
             self._logger.info(f"<Tool>: Deregister {'successed' if response.success else 'failed'} "
                               f"from Gateway ({self._gateway_address})")
-            
+
+            # Cancel heartbeat task
+            if self._heartbeat_task and not self._heartbeat_task.done():
+                self._heartbeat_task.cancel()
+                try:
+                    await self._heartbeat_task
+                except asyncio.CancelledError:
+                    pass
+
             self._gateway_address = None
 
         except grpc.aio.AioRpcError as e:
