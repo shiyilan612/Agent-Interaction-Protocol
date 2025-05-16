@@ -16,6 +16,7 @@ from typing import Dict, Callable, Any, Optional, List, Union
 from grpc_service.type import ToolInfo, ToolRequest, ToolResponse, Mode, ContentItem
 from grpc_service import ToolServiceStub
 from module.server import ToolServer
+from logger import LoggerManager
 
 
 
@@ -98,6 +99,9 @@ class Tool:
         # Request processing function
         self._process_request_func = None
         
+        self._logger_mgr = LoggerManager()
+        self._logger = self._logger_mgr.get_logger(self.tool_id)
+        
     def _create_tool_info(self) -> ToolInfo:
         """Create a ToolInfo object for registration with the gateway."""
         tool_info = ToolInfo(
@@ -174,7 +178,8 @@ class Tool:
         Returns:
             ToolResponse containing the result or error
         """
-        print(f"Tool {self.tool_id} received request")
+        self._logger.info(f"<Tool>: Tool {self.tool_id} received a request from "
+                          f"{request.sender_id}")
         assert (request.receiver_id == self.tool_id)
         try:
             

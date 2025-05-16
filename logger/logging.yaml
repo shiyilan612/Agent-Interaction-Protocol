@@ -1,0 +1,40 @@
+version: 1
+disable_existing_loggers: False
+formatters:
+  brief:
+    format: "%(asctime)s - %(message)s"
+  simple:
+    format: "%(asctime)s [%(name)s] [%(levelname)s] - %(message)s"
+    datefmt: '%F %T'
+handlers:
+  console:
+      class : logging.StreamHandler
+      formatter: simple
+      level   : INFO
+      stream  : ext://sys.stdout
+  host_handler:
+      class: logging.handlers.TimedRotatingFileHandler
+      level: INFO
+      filename: ./logs/default.log
+      when: "midnight"
+      interval: 1
+      backupCount: 7
+      formatter: simple
+      encoding: utf8
+  debug_handler:
+      class : logging.StreamHandler
+      formatter: simple
+      level: DEBUG
+      stream: ext://sys.stdout
+
+loggers:
+  # host_logger:
+  #   level: INFO
+  #   handlers: [console, info_file_handler]
+  debug_logger:
+    level: DEBUG
+    handlers: [debug_handler]
+
+root:
+  level: INFO
+  handlers: [console]

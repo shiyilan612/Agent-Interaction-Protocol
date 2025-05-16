@@ -16,6 +16,7 @@ from grpc_service import AgentServiceStub, GatewayServiceStub, ToolServiceStub
 from module.client import AgentClient
 from module.server import AgentServer
 from module.client import ToolClient
+from logger import LoggerManager
 
 
 class Agent:
@@ -65,18 +66,20 @@ class Agent:
         
         # Store active client connections
         self._agent_clients: Dict[tuple[str, str], AgentClient] = {}
-        self._tool_clients: Dict[tuple[str, str], ToolClient] = {}
+        self._tool_clients: Dict[str, ToolClient] = {}
         
         # Gateway connection
         self._gateway_address = None
         
         # Message processing function
         self._process_request_func = None
-        self._process_response_func = None
         
         # Task management
         self._tasks: Dict[str, TaskInfo] = {}
         self._task_counter = 0
+        
+        self._logger_mgr = LoggerManager()
+        self._logger = self._logger_mgr.get_logger(self.agent_id)
         
     def _create_agent_info(self) -> AgentInfo:
         """Create an AgentInfo object for registration with the gateway."""
@@ -103,31 +106,8 @@ class Agent:
         self._process_request_func = handler
         return self
     
-    def set_process_response_handler(self, handler: Callable):
-        """
-        Set the function to handle incoming responses.
-        
-        Args:
-            handler: A callable that processes AgentMessage responses
-        """
-        self._process_response_func = handler
-        return self
-    
-    # async def _default_process_request_handler(self, message: AgentMessage) -> AgentMessage:
-    #     """Default message processing function if none is provided."""
-
-    
-    # async def _default_process_response_handler(self, message: AgentMessage):
-    #     """Default response processing function if none is provided."""
-    
     async def start(self):
         """Start the agent server."""
-        # if not self._process_request_func:
-        #     self._process_request_func = self._default_process_request_handler
-            
-        # if not self._process_response_func:
-        #     self._process_response_func = self._default_process_response_handler
-        
         self._server = AgentServer(self.agent_info, self._process_request_func)
         await self._server.start()
         return self
@@ -185,55 +165,6 @@ class Agent:
         if self._server:
             return self._server._peers
         return {}
-    
-    
-    async def subscribe_to_nodes(self, node_ids=list()):
-        """Subscribe to updates from specific nodes"""
-        if not self._server:
-            raise RuntimeError("Agent server not started. Call start() first.")
-        return await self._server.subscribe_to_nodes(node_ids)
-    
-    async def unsubscribe_from_nodes(self, node_ids=list()):
-        """Unsubscribe from updates from specific nodes"""
-        if not self._server:
-            raise RuntimeError("Agent server not started. Call start() first.")
-        return await self._server.unsubscribe_from_nodes(node_ids)
-    
-    async def update_agent_info(self, 
-                              name=None, 
-                              description=None, 
-                              domain=None,
-                              version=None, 
-                              input_mode=None, 
-                              output_mode=None, 
-                              skills=None):
-        """Update agent information with the gateway"""
-        # Update local properties
-        if name is not None:
-            self.name = name
-        if description is not None:
-            self.description = description
-        if domain is not None:
-            self.domain = domain
-        if version is not None:
-            self.version = version
-        if input_mode is not None:
-            self.input_mode = input_mode
-        if output_mode is not None:
-            self.output_mode = output_mode  
-        if skills is not None:
-            self.skills = skills
-        
-        # Create updated agent info
-        updated_agent_info = self._create_agent_info()
-        
-        # Pass to server
-        if self._server:
-            await self._server.update_agent_info(updated_agent_info)
-        
-        return self
-        
-    
     
     def create_task_info(self, parent_task_ids: List[str] = None) -> TaskInfo:
         """
@@ -322,8 +253,7 @@ class Agent:
                 content_items.append(citem)
         
         return content_items
-            
-    
+
     def create_agent_message(self, 
                            receiver_id: str, 
                            content: Union[str, bytes, List[Union[str, bytes]]],
@@ -374,13 +304,9 @@ class Agent:
         
         return message
 
-    async def create_client(self, receiver_id):
-        client = AgentClient(self._process_response_func)
-        session_id = await client.start(
-            self._gateway_address,
-            GatewayServiceStub,
-            "RouteAgentCalling"
-        )
+    async def create_agent_client(self, receiver_id, stub=GatewayServiceStub, stream_calling="RouteAgentCalling"):
+        client = AgentClient()
+        session_id = await client.start(self._gateway_address, stub, stream_calling)
         self._agent_clients[(session_id, receiver_id)] = client
 
         async def _wait_client_end_up(session_id, receiver_id):
@@ -398,7 +324,7 @@ class Agent:
                            content: Union[str, bytes, List[Union[str, bytes]]],
                            content_mode: Optional[Union[Mode, List[Mode]]] = None,
                            session_status: SessionStatus = None,
-                           task_info: TaskInfo = None):
+                           task_info: TaskInfo = None) -> AgentMessage:
         """
         Send a message to another agent through the gateway.
         
@@ -431,9 +357,11 @@ class Agent:
         elif session_status == SessionStatus.START_QUEST:
             if client.occupied:
                 raise RuntimeError(f"Cannot start quest in an occupied client session")
-        else:
+        elif session_status in [SessionStatus.HOLD_QUEST, SessionStatus.STOP_QUEST]:
             if not client.occupied:
-                raise RuntimeError(f"Cannot send {session_status} in a not occupied client session")
+                raise RuntimeError(f"Cannot send {session_status} in an unoccupied client session")
+        else:
+            raise RuntimeError(f"Not supported session status: {session_status}")
 
         # Create task info if not provided
         if not task_info:
@@ -450,6 +378,8 @@ class Agent:
         )
         
         await client.send_message(message)
+
+        return await client.response_queue.get()
 
     def create_tool_request(self, 
                            receiver_id: str, 
@@ -482,8 +412,6 @@ class Agent:
         )
         
         return request
-    
-
 
     async def call_tool(self, 
                         tool_id: str, 
@@ -534,11 +462,11 @@ class Agent:
                 
         except TimeoutError:
             # Handle timeout specifically
-            print(f"Tool call to {tool_id} timed out")
+            self._logger.error(f"<Agent>: Tool call to [{tool_id}] timed out")
             raise
         except Exception as e:
             # Handle other exceptions
-            print(f"Error calling tool {tool_id}: {str(e)}")
+            self._logger.error(f"<Agent>: Error calling tool [{tool_id}]: {str(e)}")
             raise
             
     async def close_agent_client(self, session_id: str, receiver_id: str) -> bool:
@@ -557,7 +485,7 @@ class Agent:
             await client.close()
             return True
         else:
-            print(f"Not existed client:{key}")
+            self._logger.warning(f"<Agent>: Try to close a not existed client: {key}")
 
         return False
     
