@@ -118,7 +118,7 @@ class AgentService(AgentServiceServicer):
     async def stop(self) -> None:
         """Stop the Agent service gRPC server."""
         if self._server:
-            await self._server.stop(grace=None)
+            await self._server.stop(grace=10.0)
             await self.disconnect_from_gateway()
             self._logger.info(f"<Agent>: Agent service [{self.agent_id}] at [{self.address}] "
                               f"stopped")

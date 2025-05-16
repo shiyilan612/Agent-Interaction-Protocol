@@ -28,7 +28,7 @@ class AgentServer(AgentService):
             sender_id = first_message.sender_id
             receiver_id = first_message.receiver_id
             
-            self._logger.info(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
+            self._logger.debug(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
                                f"Received request")
 
             if first_message.session_status != SessionStatus.START_QUEST:
@@ -61,7 +61,7 @@ class AgentServer(AgentService):
         async def receive_requests():
             await session.put_request(first_message)
             async for request in request_iterator:
-                self._logger.info(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
+                self._logger.debug(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
                                f"Received request")
                 await session.put_request(AgentMessage.from_grpc(request))
 
@@ -69,7 +69,7 @@ class AgentServer(AgentService):
 
         try:
             async for response in session.get_response():
-                self._logger.info(f"<Agent>: [AgentMessage {receiver_id} -> {sender_id}] "
+                self._logger.debug(f"<Agent>: [AgentMessage {receiver_id} -> {sender_id}] "
                                f"Send response")
                 yield response.to_grpc()
         except RuntimeError as e:
@@ -83,4 +83,4 @@ class AgentServer(AgentService):
         finally:
             receive_task.cancel()
             await self.session_mgr.close_session(client_session_id)
-            self._logger.info(f"<Agent>: Session [{session.session_id}] closed")
+            self._logger.debug(f"<Agent>: Session [{session.session_id}] closed")

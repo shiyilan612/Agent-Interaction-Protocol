@@ -193,7 +193,7 @@ class AgentServerSessionManager:
             await new_session.activate()
             self.active_sessions[session_id] = new_session
 
-            self._logger.info(f"<Agent>: Session [{session_id}] created for processing requests of"
+            self._logger.debug(f"<Agent>: Session [{session_id}] created for processing requests of"
                               f" Agent [{client_id}]")
             return new_session
 

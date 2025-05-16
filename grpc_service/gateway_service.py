@@ -196,7 +196,7 @@ class GatewayService(GatewayServiceServicer):
         self._registry[agent_id] = request
         self._registered_addresses.add(address)
         await self._connection_pool.create_stub(address, AgentServiceStub)
-        self._logger.info(f"<GW>: Register Agent [{agent_id}] (addr in {address})")
+        self._logger.info(f"<GW>: Register Agent [{agent_id}], addr in [{address}]")
 
         peers = await self._collect_node_peers()  # collect peers
 
@@ -229,7 +229,7 @@ class GatewayService(GatewayServiceServicer):
         self._registry[tool_id] = request
         self._registered_addresses.add(address)
         await self._connection_pool.create_stub(address, ToolServiceStub)
-        self._logger.info(f"<GW>: Register Tool [{tool_id}] (addr in {address})")
+        self._logger.info(f"<GW>: Register Tool [{tool_id}], addr in [{address}]")
         
         return pb2.RegisterToolResponse(
             success=True
@@ -268,7 +268,7 @@ class GatewayService(GatewayServiceServicer):
     async def stop(self) -> None:
         """Stop the Gateway service gRPC server."""
         if self._server:
-            await self._server.stop(grace=None)
+            await self._server.stop(grace=10.0)
             self._logger.info(f"<GW>: Gateway service [{self.gateway_id}] at "
                               f"[{self.address}] stopped")
         # Close all connections in the pool
