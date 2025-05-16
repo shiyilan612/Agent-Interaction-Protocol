@@ -95,9 +95,9 @@ class ToolService(ToolServiceServicer):
                 # Send heartbeat
                 response = await stub.Heartbeat(request)
                 if not response.success:
-                    self._logger.info(f"<{self.tool_id}>: Heartbeat failed: {response.message}")
+                    self._logger.debug(f"<{self.tool_id}>: Heartbeat failed: {response.message}")
                 else:
-                    self._logger.info(f"<{self.tool_id}>: Heartbeat sent successfully")
+                    self._logger.debug(f"<{self.tool_id}>: Heartbeat sent successfully")
 
                 # Wait for the next interval
                 await asyncio.sleep(self.heartbeat_interval)
