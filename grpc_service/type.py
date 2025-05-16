@@ -326,7 +326,38 @@ class RegisterToolResponse:
         return cls(
             success=grpc_obj.success
         )
+        
+    
+class DeregisterNodeRequest:
+    def __init__(self, node_id: str):
+        self.node_id = node_id
 
+    def to_grpc(self) -> pb2.DeregisterNodeRequest:
+        return pb2.DeregisterNodeRequest(
+            node_id = self.node_id
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.DeregisterNodeRequest) -> 'DeregisterNodeRequest':
+        return cls(
+            node_id=grpc_obj.node_id
+        )
+        
+        
+class DeregisterNodeResponse:
+    def __init__(self, success: bool):
+        self.success = success
+
+    def to_grpc(self) -> pb2.DeregisterNodeResponse:
+        return pb2.DeregisterToolResponse(
+            success = self.success
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.DeregisterNodeResponse) -> 'DeregisterNodeResponse':
+        return cls(
+            success=grpc_obj.success
+        )
 
 class GetNodesRequest:
     def __init__(self, agent_id: str, domain: str):

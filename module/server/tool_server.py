@@ -22,9 +22,17 @@ class ToolServer(ToolService):
         try:
             request = ToolRequest.from_grpc(request)
             session_id = request.session_id
+            
+            sender_id = request.sender_id
+            receiver_id = request.receiver_id
+            self._logger.info(f"<Tool>: [ToolRequest {sender_id} -> {receiver_id}] "
+                               f"Received request")
 
             session = ToolServerSession(session_id, self.process_request_func)
             response = await session.process_request(request)
+            
+            self._logger.info(f"<Tool>: [ToolResponse {receiver_id} -> {sender_id}] "
+                               f"Send response")
 
             return response.to_grpc()
 

@@ -68,6 +68,13 @@ message RegisterToolResponse { // Tool注册响应信息
   bool success = 1;
 }
 
+message DeregisterNodeRequest { // Node取消注册请求信息
+  string node_id = 1;
+}
+
+message DeregisterNodeResponse { // Node取消注册响应信息
+  bool success = 1;
+}
 
 /* 节点清单获取 */
 message GetNodesRequest {
@@ -156,6 +163,9 @@ service GatewayService {
 
   // Tool注册
   rpc RegisterTool(ToolInfo) returns (RegisterToolResponse) {};
+
+  // Node取消注册
+  rpc DeregisterNode(DeregisterNodeRequest) returns (DeregisterNodeResponse) {};
 
   // Agent获取节点清单
   rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
