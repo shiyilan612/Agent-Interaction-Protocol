@@ -301,7 +301,7 @@ class GatewayService(GatewayServiceServicer):
                 # Check all registered nodes
                 for node_id, last_heartbeat in list(self._last_heartbeats.items()):
                     if (current_time - last_heartbeat) > self.heartbeat_timeout:
-                        self._logger.info(f"<GW>: Node {node_id} heartbeat timeout")
+                        self._logger.debug(f"<GW>: Node {node_id} heartbeat timeout")
                         nodes_to_disconnect.append(node_id)
 
                 # Disconnect timed-out nodes
