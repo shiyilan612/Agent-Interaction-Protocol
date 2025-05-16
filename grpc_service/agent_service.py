@@ -119,6 +119,7 @@ class AgentService(AgentServiceServicer):
         """Stop the Agent service gRPC server."""
         if self._server:
             await self._server.stop(grace=None)
+            await self.disconnect_from_gateway()
             self._logger.info(f"<Agent>: Agent service [{self.agent_id}] at [{self.address}] "
                               f"stopped")
         # Close all connections in the pool
@@ -153,6 +154,33 @@ class AgentService(AgentServiceServicer):
         except Exception as e:
             self._logger.error(f"<Agent>: Register failed to Gateway ({gateway_address}). "
                                f"Other exception: {str(e)}")
+        
+    async def disconnect_from_gateway(self):
+        """
+        Disconnect from the gateway service and deregister this Agent.
+        """
+        stub = self._connection_pool.get_stub(self._gateway_address)
+
+        try:
+            # deregister agent    
+            response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.agent_id))         
+            await self._connection_pool.close_stub(self._gateway_address)
+            
+            self._logger.info(f"<Agent>: Deregister {'successed' if response.success else 'failed'} "
+                              f"from Gateway ({self._gateway_address})")
+            
+            self._gateway_address = None
+
+        except grpc.aio.AioRpcError as e:
+            self._logger.error(f"<Agent>: Deegister failed from Gateway ({self._gateway_address}). "
+                               f"RPC Error: {e.code()}, details: {e.details()}")
+            if e.code() == grpc.StatusCode.UNKNOWN:
+                # Handle BrokenPipeError
+                pass
+            raise
+        except Exception as e:
+            self._logger.error(f"<Agent>: Deregister failed from Gateway ({self._gateway_address})."
+                               f" Other exception: {str(e)}")
             
     async def get_gateway_node(self, domain: str = 'default'):
         """

@@ -119,8 +119,7 @@ class GatewayService(GatewayServiceServicer):
         stub = self._connection_pool.get_stub(node_info.address)
         return stub
     
-    # TODO: 需要考虑节点的注销，proto里面需要定义注销信息
-    async def deregister_node(self, node_id: str) -> None:
+    async def _deregister_node(self, node_id: str) -> None:
         """Delete the node from the registry and close its connection.
 
         Args:
@@ -129,11 +128,13 @@ class GatewayService(GatewayServiceServicer):
         node_info = await self.get_node_info(node_id)
         if not node_info:
             self._logger.warning(f"<GW>: Try to remove node [{node_id}] but not found in registry.")
+            return False
         else:
             del self._registry[node_id]
             self._registered_addresses.discard(node_info.address)
             await self._connection_pool.close_stub(node_info.address)
             self._logger.info(f"<GW>: Remove node [{node_id}] from registry. Connection terminated.")
+            return True
 
     async def _handle_server_termination(self):
         try:
@@ -232,6 +233,15 @@ class GatewayService(GatewayServiceServicer):
         
         return pb2.RegisterToolResponse(
             success=True
+        )
+        
+    async def DeregisterNode(self, 
+                             request: pb2.DeregisterNodeRequest, 
+                             context: grpc.aio.ServicerContext)  -> pb2.DeregisterNodeResponse:
+        node_id = request.node_id
+        
+        return pb2.DeregisterNodeResponse(
+            success=await self._deregister_node(node_id)
         )
 
     async def GetNodes(self,

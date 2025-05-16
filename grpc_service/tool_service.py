@@ -2,7 +2,7 @@
 """
 Created on Fri Apr 18 10:01:08 2025
 
-@author: xmkang
+@author: xmkang & clleng
 """
 
 # -*- coding: utf-8 -*-
@@ -95,6 +95,7 @@ class ToolService(ToolServiceServicer):
         """Stop the tool service gRPC server."""
         if self._server:
             await self._server.stop(grace=None)
+            await self.disconnect_from_gateway()
             self._logger.info(f"<Tool>: Tool service [{self.tool_id}] at [{self.address}] stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
@@ -112,8 +113,10 @@ class ToolService(ToolServiceServicer):
         try:
             # Register Tool with gateway
             response = await stub.RegisterTool(self.tool_info)
+            
             self._logger.info(f"<Tool>: Register {'successed' if response else 'failed'} "
                               f"to Gateway ({gateway_address})")
+            
         except grpc.aio.AioRpcError as e:
             self._logger.error(f"<Tool>: Register failed to Gateway ({gateway_address}). "
                                f"RPC Error: {e.code()}, details: {e.details()}")
@@ -124,3 +127,30 @@ class ToolService(ToolServiceServicer):
         except Exception as e:
             self._logger.error(f"<Tool>: Register failed to Gateway ({gateway_address}). "
                                f"Other exception: {str(e)}")
+            
+    async def disconnect_from_gateway(self):
+        """
+        Disconnect from the gateway service and deregister this Tool.
+        """
+        stub = self._connection_pool.get_stub(self._gateway_address)
+
+        try:
+            # deregister tool  
+            response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.tool_id))          
+            await self._connection_pool.close_stub(self._gateway_address)
+            
+            self._logger.info(f"<Tool>: Deregister {'successed' if response.success else 'failed'} "
+                              f"from Gateway ({self._gateway_address})")
+            
+            self._gateway_address = None
+
+        except grpc.aio.AioRpcError as e:
+            self._logger.error(f"<Tool>: Deegister failed from Gateway ({self._gateway_address}). "
+                               f"RPC Error: {e.code()}, details: {e.details()}")
+            if e.code() == grpc.StatusCode.UNKNOWN:
+                # Handle BrokenPipeError
+                pass
+            raise
+        except Exception as e:
+            self._logger.error(f"<Tool>: Deregister failed from Gateway ({self._gateway_address})."
+                               f" Other exception: {str(e)}")

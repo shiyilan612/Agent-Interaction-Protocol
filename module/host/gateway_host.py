@@ -93,7 +93,7 @@ class GatewayHost(GatewayService):
             context.set_code(e.code())
             context.set_details(e.details())
             # delete failed node
-            await super().deregister_node(session.receiver_id)
+            await super()._deregister_node(session.receiver_id)
             return
         finally:
             forward_task.cancel()
@@ -149,7 +149,7 @@ class GatewayHost(GatewayService):
             self._logger.error(f"<GW>: [ToolResponse {sender_id} -> {receiver_id}] Route "
                   f"ToolCalling failed: RPC Error: {e.code()}, details: {e.details()}")
             # delete failed node
-            await super().deregister_node(request.receiver_id)
+            await super()._deregister_node(request.receiver_id)
             return
 
     async def get_agents_info(self) -> Dict[str, AgentInfo]:
