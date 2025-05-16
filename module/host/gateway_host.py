@@ -32,8 +32,15 @@ class GatewayHost(GatewayService):
         Returns:
             AsyncIterable[pb2.AgentMessage]: The response from the receiver."""
             
-        _first_message = await request_iterator.__aiter__().__anext__()
-        first_message = AgentMessage.from_grpc(_first_message)
+        try:
+            _first_message = await request_iterator.__aiter__().__anext__()
+            first_message = AgentMessage.from_grpc(_first_message)
+        except StopAsyncIteration:
+            context.set_code(grpc.StatusCode.ABORTED)
+            context.set_details("Empty request stream")
+            self._logger.error(f"<GW>: [AgentMessage] Empty request stream")
+            
+            return
         
         sender_id = first_message.sender_id
         receiver_id = first_message.receiver_id
