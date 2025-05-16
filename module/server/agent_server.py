@@ -54,6 +54,7 @@ class AgentServer(AgentService):
         except StopAsyncIteration:
             context.set_code(grpc.StatusCode.ABORTED)
             context.set_details("Empty request stream")
+            self._logger.error(f"<Agent>: [AgentMessage] Empty request stream")
 
             return
 
