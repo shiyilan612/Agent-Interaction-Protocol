@@ -55,7 +55,8 @@ class Gateway:
         Args:
             gateway_address: Address of the gateway to connect to
         """
-        # TODO: 为网关互联预留
+        # Prepared for gateway interconnection
+        # This is a placeholder for the actual implementation
         pass
 
     async def get_route_log(self) -> List[str]:

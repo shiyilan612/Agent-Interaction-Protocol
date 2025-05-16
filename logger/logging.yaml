@@ -14,7 +14,7 @@ handlers:
       stream  : ext://sys.stdout
   host_handler:
       class: logging.handlers.TimedRotatingFileHandler
-      level: INFO
+      level: DEBUG
       filename: ./logs/default.log
       when: "midnight"
       interval: 1

@@ -209,7 +209,7 @@ class GatewayService(GatewayServiceServicer):
         self._last_heartbeats[agent_id] = time.time()
 
         await self._connection_pool.create_stub(address, AgentServiceStub)
-        self._logger.info(f"<GW>: Register Agent [{agent_id}] (addr in {address})")
+        self._logger.info(f"<GW>: Register Agent [{agent_id}], addr in [{address}]")
 
         peers = await self._collect_node_peers()  # collect peers
 
@@ -246,7 +246,7 @@ class GatewayService(GatewayServiceServicer):
         self._last_heartbeats[tool_id] = time.time()
 
         await self._connection_pool.create_stub(address, ToolServiceStub)
-        self._logger.info(f"<GW>: Register Tool [{tool_id}] (addr in {address})")
+        self._logger.info(f"<GW>: Register Tool [{tool_id}], addr in [{address}]")
         
         return pb2.RegisterToolResponse(
             success=True
