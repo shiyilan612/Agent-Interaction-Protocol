@@ -32,42 +32,47 @@ class GatewayHost(GatewayService):
         Returns:
             AsyncIterable[pb2.AgentMessage]: The response from the receiver."""
             
-        _first_message = await request_iterator.__aiter__().__anext__()
-        first_message = AgentMessage.from_grpc(_first_message)
-        
-        sender_id = first_message.sender_id
-        receiver_id = first_message.receiver_id
-        
-        if first_message.session_status != SessionStatus.START_QUEST:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("First message must be START_QUEST")
-            self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] First message "
-                               f"is not START_QUEST")
-            return
+        try:
+            _first_message = await request_iterator.__aiter__().__anext__()
+            first_message = AgentMessage.from_grpc(_first_message)
+            
+            sender_id = first_message.sender_id
+            receiver_id = first_message.receiver_id
+            
+            if first_message.session_status != SessionStatus.START_QUEST:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("First message must be START_QUEST")
+                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] First message "
+                                f"is not START_QUEST")
+                return
 
-        client_session_id = first_message.session_id
-        if not client_session_id:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("Missing session_id in START_QUEST")
-            self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Missing "
-                               f"session_id in START_QUEST")
+            client_session_id = first_message.session_id
+            if not client_session_id:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("Missing session_id in START_QUEST")
+                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Missing "
+                                f"session_id in START_QUEST")
+                return
+            
+            stub = await super().get_node_stub(first_message.receiver_id)
+            if not stub:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details("Receiver not found")
+                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Routing "
+                                f"failed. Receiver not found")
+                return
+            
+            session = await self.session_mgr.create_or_get_session(session_id=first_message.session_id,
+                                                                sender_id=first_message.sender_id,
+                                                                receiver_id=first_message.receiver_id,
+                                                                stub=stub, 
+                                                                callable_func="CallAgent")
+        except StopAsyncIteration:
+            context.set_code(grpc.StatusCode.ABORTED)
+            context.set_details("Empty request stream")
+            self._logger.error(f"<GW>: [AgentMessage] Empty request stream")
+            
             return
-        
-        stub = await super().get_node_stub(first_message.receiver_id)
-        if not stub:
-            context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details("Receiver not found")
-            self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Routing "
-                               f"failed. Receiver not found")
-            return
-        
-        session = await self.session_mgr.create_or_get_session(session_id=first_message.session_id,
-                                                               sender_id=first_message.sender_id,
-                                                               receiver_id=first_message.receiver_id,
-                                                               stub=stub, 
-                                                               callable_func="CallAgent")
-        self._logger.info(f"<GW>: Session [{first_message.session_id}] created for {sender_id}"
-                              f" -> {receiver_id}")
         
         await self._forward_agent_message(session, _first_message)
         async def forward_message():

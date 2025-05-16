@@ -94,7 +94,7 @@ class ToolService(ToolServiceServicer):
     async def stop(self) -> None:
         """Stop the tool service gRPC server."""
         if self._server:
-            await self._server.stop(grace=None)
+            await self._server.stop(grace=10.0)
             await self.disconnect_from_gateway()
             self._logger.info(f"<Tool>: Tool service [{self.tool_id}] at [{self.address}] stopped")
         # Close all connections in the pool
