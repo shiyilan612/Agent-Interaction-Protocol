@@ -11,7 +11,8 @@ from session import AgentClientSession
 
 
 class AgentClient:
-    def __init__(self):
+    def __init__(self, session_id):
+        self.session_id = session_id
         self.channel = None
         self.session = None
         self._response_task = None
@@ -26,7 +27,7 @@ class AgentClient:
         self.channel = grpc.aio.insecure_channel(server_address)
         await self.channel.channel_ready()
         stream_stream_call = getattr(stub(self.channel), stream_calling)()
-        self.session = AgentClientSession(stream_stream_call)
+        self.session = AgentClientSession(self.session_id, stream_stream_call)
         session_id = await self.session.activate()
         self._response_task = asyncio.create_task(self._process_responses())
         self.response_queue = asyncio.Queue()

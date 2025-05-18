@@ -62,7 +62,7 @@ class Agent:
         
         # Server instance
         self._server = None
-        
+
         # Store active client connections
         self._agent_clients: Dict[tuple[str, str], AgentClient] = {}
         self._tool_clients: Dict[str, ToolClient] = {}
@@ -300,8 +300,13 @@ class Agent:
         
         return message
 
-    async def create_agent_client(self, receiver_id, stub=GatewayServiceStub, stream_calling="RouteAgentCalling"):
-        client = AgentClient()
+    async def create_agent_client(
+            self, receiver_id,
+            session_id=None,
+            stub=GatewayServiceStub,
+            stream_calling="RouteAgentCalling"
+    ):
+        client = AgentClient(session_id)
         session_id = await client.start(self._gateway_address, stub, stream_calling)
         self._agent_clients[(session_id, receiver_id)] = client
 
@@ -314,15 +319,15 @@ class Agent:
 
         return session_id
 
-    async def send_message(self,
-                           session_id: str,
-                           receiver_id: str,
-                           content: Union[str, bytes, List[Union[str, bytes]]],
-                           content_mode: Optional[Union[Mode, List[Mode]]] = None,
-                           session_status: SessionStatus = None,
-                           task_info: TaskInfo = None) -> AgentMessage:
+    async def submit_inquiry(self,
+                             session_id: str,
+                             receiver_id: str,
+                             content: Union[str, bytes, List[Union[str, bytes]]],
+                             content_mode: Optional[Union[Mode, List[Mode]]] = None,
+                             session_status: SessionStatus = None,
+                             task_info: TaskInfo = None):
         """
-        Send a message to another agent through the gateway.
+        Send an inquiry to another agent server.
         
         Args:
             session_id: Optional session ID (automatically generated if not provided)
@@ -375,13 +380,56 @@ class Agent:
         
         await client.send_message(message)
 
+    async def receive_feedback(self, session_id: str, receiver_id: str) -> AgentMessage:
+        """
+        get a feedback from another agent server.
+        """
+        client = self._agent_clients.get((session_id, receiver_id))
+        if not client:
+            raise RuntimeError(f"Not existed client (session id: {session_id} | receiver_id: {receiver_id})")
+
         return await client.response_queue.get()
 
+    async def submit_feedback(self,
+                              session_id: str,
+                              receiver_id: str,
+                              task_info: TaskInfo,
+                              content: Union[str, bytes, List[Union[str, bytes]]],
+                              content_mode: Optional[Union[Mode, List[Mode]]] = None,
+                              session_status: SessionStatus = None) -> AgentMessage:
+        """
+        Send a feedback to another agent client.
+        """
+        if session_status is None:
+            session_status = SessionStatus.HOLD_RESPONSE
+        else:
+            if not session_status in [SessionStatus.HOLD_RESPONSE, SessionStatus.STOP_RESPONSE]:
+                raise RuntimeError(f"Not supported session status: {session_status}")
+        
+        # Create and send the message
+        message = self.create_agent_message(
+            receiver_id=receiver_id,
+            content=content,
+            session_id=session_id,
+            task_info=task_info,
+            content_mode=content_mode,
+            session_status=session_status
+        )
+
+        # send response
+        await self._server.send_response(session_id, message)
+
+    async def receive_inquiry(self, session_id: str) -> AgentMessage:
+        """
+        get an inquiry from another agent client.
+        """
+        return await self._server.get_request(session_id)
+
     def create_tool_request(self, 
-                           receiver_id: str, 
-                           session_id: str = None,
-                           tool_name: str = None,
-                           arguments: Dict[str, Any] = None) -> ToolRequest:
+                            receiver_id: str, 
+                            session_id: str = None,
+                            tool_name: str = None,
+                            arguments: Dict[str, Any] = None) -> ToolRequest:
         """
         Create an AgentMessage object.
         
