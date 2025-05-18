@@ -7,7 +7,7 @@ Created on Mon Apr 21 12:00:00 2025
 import uuid
 import time
 import asyncio
-import grpc
+import logging
 from typing import Dict, Callable
 from grpc_service.type import AgentMessage, SessionStatus
 
@@ -17,7 +17,7 @@ class AgentClientSession:
         self.stream_stream_call = stream_stream_call
         self.timeout = timeout
 
-        self.session_id =  None
+        self.session_id = None
         self.active_session = None
         self.response_queue = None
         self._receive_task = None
@@ -32,12 +32,6 @@ class AgentClientSession:
                 if response.session_status == SessionStatus.STOP_RESPONSE:
                     if self.active_session and not self.active_session.done():
                         self.active_session.set_result(response)
-        except grpc.RpcError as rpc_error:
-            # TODO: 加入异常处理log逻辑，统一异常处理模块？
-            if self.active_session and not self.active_session.done():
-                self.active_session.set_exception(rpc_error)
-            self._running = False
-            raise
         except Exception as e:
             if self.active_session and not self.active_session.done():
                 self.active_session.set_exception(e)
@@ -131,12 +125,10 @@ class AgentServerSession:
                     continue
 
                 response = await self.process_request_func(request)
-                # TODO: log
-                # print(f"Processing request: {request.content[0]._text} -> {response.content[0]._text}, status: {response.session_status}")
+
                 if response.session_status not in [SessionStatus.HOLD_RESPONSE, SessionStatus.STOP_RESPONSE]:
-                    # print("Invalid session status in response")
                     raise RuntimeError(f"Invalid session status in response: {response.session_status}")
-                    
+
                 await self.response_queue.put(response)
 
                 # flag done
@@ -163,7 +155,6 @@ class AgentServerSession:
         while self._is_active or not self.response_queue.empty():
             response = await self.response_queue.get()
             if isinstance(response, Exception):
-                print(f"Error in session {self.session_id}: {response}")
                 self.close()
                 raise response
             yield response
@@ -177,15 +168,19 @@ class AgentServerSession:
 class AgentServerSessionManager:
     """session manager of Agent server"""
 
-    def __init__(self):
+    def __init__(self, logger: logging.Logger):
         self.active_sessions: Dict[str, AgentServerSession] = {}
         self._lock = asyncio.Lock()
+        self._logger = logger
 
-    async def create_or_get_session(self, session_id: str) -> AgentServerSession:
+    async def create_or_get_session(self,
+                                    session_id: str,
+                                    client_id: str) -> AgentServerSession:
         """
         Create a new session or return an existing one.
         Args:
             session_id (str): The session ID.
+            client_id (str): The client ID.
         Returns:
             AgentServerSession: The session object.
         """
@@ -196,6 +191,8 @@ class AgentServerSessionManager:
             await new_session.activate()
             self.active_sessions[session_id] = new_session
 
+            self._logger.debug(f"<Agent>: Session [{session_id}] created for processing requests of"
+                               f" Agent [{client_id}]")
             return new_session
 
     async def close_session(self, session_id: str):
