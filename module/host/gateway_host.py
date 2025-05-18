@@ -4,6 +4,7 @@ Created on Thur Mon Apr 24 19:00:00 2025
 
 @author: clleng
 """
+import time
 import grpc
 import asyncio
 from typing import Dict, AsyncIterable
@@ -18,7 +19,7 @@ class GatewayHost(GatewayService):
                  address: str,
                  gateway_id: str = None):
         super().__init__(address=address, gateway_id=gateway_id)
-        self.session_mgr = GatewaySessionMagager()
+        self.session_mgr = GatewaySessionMagager(logger=self._logger)
         
     async def RouteAgentCalling(self,
                                 request_iterator: AsyncIterable[pb2.AgentMessage],
@@ -32,32 +33,52 @@ class GatewayHost(GatewayService):
         Returns:
             AsyncIterable[pb2.AgentMessage]: The response from the receiver."""
             
-        _first_message = await request_iterator.__aiter__().__anext__()
-        first_message = AgentMessage.from_grpc(_first_message)
-        
-        if first_message.session_status != SessionStatus.START_QUEST:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("First message must be START_QUEST")
-            return
+        try:
+            _first_message = await request_iterator.__aiter__().__anext__()
+            first_message = AgentMessage.from_grpc(_first_message)
+            
+            sender_id = first_message.sender_id
+            receiver_id = first_message.receiver_id
 
-        client_session_id = first_message.session_id
-        if not client_session_id:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("Missing session_id in START_QUEST")
+            # Update heartbeat timestamp for the sender
+            if sender_id and sender_id in self._registry:
+                self._last_heartbeats[sender_id] = time.time()
+            
+            if first_message.session_status != SessionStatus.START_QUEST:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("First message must be START_QUEST")
+                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] First message "
+                                f"is not START_QUEST")
+                return
+
+            client_session_id = first_message.session_id
+            if not client_session_id:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("Missing session_id in START_QUEST")
+                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Missing "
+                                f"session_id in START_QUEST")
+                return
+            
+            stub = await super().get_node_stub(first_message.receiver_id)
+            if not stub:
+                context.set_code(grpc.StatusCode.NOT_FOUND)
+                context.set_details("Receiver not found")
+                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Routing "
+                                f"failed. Receiver not found")
+                return
+            
+            session = await self.session_mgr.create_or_get_session(session_id=first_message.session_id,
+                                                                sender_id=first_message.sender_id,
+                                                                receiver_id=first_message.receiver_id,
+                                                                stub=stub, 
+                                                                callable_func="CallAgent")
+        except StopAsyncIteration:
+            context.set_code(grpc.StatusCode.ABORTED)
+            context.set_details("Empty request stream")
+            self._logger.error(f"<GW>: [AgentMessage] Empty request stream")
+            
             return
         
-        stub = await super().get_node_stub(first_message.receiver_id)
-        if not stub:
-            context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details("Receiver not found")
-            print(f"<GW>: Routing failed: Receiver {first_message.receiver_id} not found")
-            return
-        
-        session = await self.session_mgr.create_or_get_session(session_id=first_message.session_id,
-                                                               sender_id=first_message.sender_id,
-                                                               receiver_id=first_message.receiver_id,
-                                                               stub=stub, 
-                                                               callable_func="CallAgent")
         await self._forward_agent_message(session, _first_message)
         async def forward_message():
             async for message in request_iterator:
@@ -68,29 +89,27 @@ class GatewayHost(GatewayService):
         try:
             # yield the responses from the session
             async for response in session.get_response():
-                # print(f"Yielding response: {response.content[0]._text}")
-                # response = AgentMessage.from_grpc(response)
-
+                self._logger.info(f"<GW>: [AgentMessage {receiver_id} -> {sender_id}] Route "
+                                  f"response in session [{session.session_id}]")
+                yield response.to_grpc()
+                
                 if response.session_status == SessionStatus.STOP_RESPONSE:
                     # close the session if the response is STOP_RESPONSE
-                    forward_task.cancel()
-                    await self.session_mgr.close_session(session_id=session.session_id)
-                    # print(f"<GW>: Session {session.session_id} closed")
-                    yield response.to_grpc()
                     break
-
-                yield response.to_grpc()
         except grpc.RpcError as e:
-            receiver_info = await super().get_node_info(session.receiver_id)
-            print(f"<GW>: Get Response from Agent {session.receiver_id} (address: {receiver_info.address}) failed: {e.code()} details: {e.details()}")
+            self._logger.error(f"<GW> [AgentMessage {receiver_id} -> {sender_id}] Error happened"
+                                f" in session [{session.session_id}]. "
+                                f"RPC Error: {e.code()}, details: {e.details()}")
             context.set_code(e.code())
             context.set_details(e.details())
             # delete failed node
-            await super().deregister_node(session.receiver_id)
+            await super()._deregister_node(session.receiver_id)
             return
         finally:
             forward_task.cancel()
             await self.session_mgr.close_session(session_id=session.session_id)
+            self._logger.info(f"<GW>: Session [{session.session_id}] closed")
+            
         
     async def _forward_agent_message(self, session: GatewaySession, message: pb2.AgentMessage) -> None:
         """Route agent message to the receiver.
@@ -100,43 +119,51 @@ class GatewayHost(GatewayService):
         Returns:
             AsyncIterable[pb2.AgentMessage]: The response from the receiver.
         """
-        message = AgentMessage.from_grpc(message)
-        # print(f"Start to forward message: {message.content[0]._text}")
+        # route the message to the receiver by session
+        await session.enqueue_forward_message(message)
+        self._logger.info(f"<GW>: [AgentMessage {message.receiver_id} -> {message.sender_id}]"
+                            f" Route request in session [{session.session_id}]")
 
-        try:
-            # route the message to the receiver by session
-            # print(f"Try to enqueue message {message.content[0]._text}")
-            await session.enqueue_forward_message(message.to_grpc())
-
-        except grpc.RpcError as e:
-            receiver_info = await super().get_node_info(message.receiver_id)
-            print(f"<GW>: Forwarding to Agent {message.receiver_id} (address: {receiver_info.address}) failed: {e.code()}")
-            # delete failed node
-            await super().deregister_node(message.receiver_id)
-
-    async def _forward_tool_request(self, request: pb2.ToolRequest) -> pb2.ToolResponse:
+            
+    async def RouteToolCalling(self,
+                               request: pb2.ToolRequest,
+                               context: grpc.aio.ServicerContext) -> pb2.ToolResponse:
         """Route tool request to the receiver.
-
+        
         Args:
             request (pb2.ToolRequest): The tool request to be routed.
+            context (grpc.aio.ServicerContext): The gRPC context.
+            
         Returns:
             pb2.ToolResponse: The response from the receiver.
         """
+        sender_id = request.sender_id
+        receiver_id = request.receiver_id
+
+        # Update heartbeat timestamp for the sender
+        if sender_id and sender_id in self._registry:
+            self._last_heartbeats[sender_id] = time.time()
+        
         stub = await super().get_node_stub(request.receiver_id)
         if not stub:
-            print(f"<GW>: Routing failed: Receiver {request.receiver_id} not found")
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details("Receiver not found")
+            self._logger.error(f"<GW>: [ToolRequest {sender_id} -> {receiver_id}]"
+                               f" Routing failed. Receiver not found")
             return
-
+        
         try:
+            self._logger.info(f"<GW>: [ToolRequest {sender_id} -> {receiver_id}] Route request")
             response = await stub.CallTool(request)
 
+            self._logger.info(f"<GW>: [ToolResponse {receiver_id} -> {sender_id}] Route response")
             return response
 
         except grpc.RpcError as e:
-            receiver_info = await super().get_node_info(request.receiver_id)
-            print(f"<GW>: Forwarding to {receiver_info.address} failed: {e.code()}")
+            self._logger.error(f"<GW>: [ToolResponse {sender_id} -> {receiver_id}] Route "
+                  f"ToolCalling failed: RPC Error: {e.code()}, details: {e.details()}")
             # delete failed node
-            await super().deregister_node(request.receiver_id)
+            await super()._deregister_node(request.receiver_id)
             return
 
     async def get_agents_info(self) -> Dict[str, AgentInfo]:

@@ -2,7 +2,7 @@
 """
 Created on Wed Apr 23 12:00:00 2025
 
-@author: haixinwa
+@author: haixinwa & xmkang
 """
 
 # -*- coding: utf-8 -*-
@@ -22,9 +22,17 @@ class ToolServer(ToolService):
         try:
             request = ToolRequest.from_grpc(request)
             session_id = request.session_id
+            
+            sender_id = request.sender_id
+            receiver_id = request.receiver_id
+            self._logger.info(f"<Tool>: [ToolRequest {sender_id} -> {receiver_id}] "
+                               f"Received request")
 
             session = ToolServerSession(session_id, self.process_request_func)
             response = await session.process_request(request)
+            
+            self._logger.info(f"<Tool>: [ToolResponse {receiver_id} -> {sender_id}] "
+                               f"Send response")
 
             return response.to_grpc()
 
@@ -33,3 +41,10 @@ class ToolServer(ToolService):
                 code=grpc.StatusCode.INTERNAL,
                 details=f"Handling request failure: {str(e)}"
             )
+            
+    async def update_tool_info(self, new_tool_info):
+        """Update the tool info with the gateway"""
+        # Store the new info in the underlying service
+        self.tool_info = new_tool_info.to_grpc()
+        # The ToolService._check_tool_info_updates will detect the change
+        # and notify the gateway on the next update interval

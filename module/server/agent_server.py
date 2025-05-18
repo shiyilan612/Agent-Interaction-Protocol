@@ -14,9 +14,10 @@ from session import AgentServerSessionManager
 
 
 class AgentServer(AgentService):
-    def __init__(self, agent_info: AgentInfo):
+    def __init__(self, agent_info: AgentInfo, process_request_func: Callable):
         super().__init__(agent_info.to_grpc())
         self.session_mgr = AgentServerSessionManager()
+        self.process_request_func = process_request_func
 
     async def CallAgent(self, request_iterator, context):
         # Phase I: Receive the first package and verify the START QUEST
@@ -36,7 +37,7 @@ class AgentServer(AgentService):
                 return
 
             # initialize the server session using the client session id
-            session = await self.session_mgr.create_or_get_session(client_session_id)
+            session = await self.session_mgr.create_or_get_session(client_session_id, self.process_request_func)
 
         except StopAsyncIteration:
             context.set_code(grpc.StatusCode.ABORTED)
@@ -44,7 +45,7 @@ class AgentServer(AgentService):
 
             return
 
-        # Phase II: Handle the flowed messages
+        # Phase II: Handle the flowed message flow
         async def receive_requests():
             await session.put_request(first_message)
             async for request in request_iterator:
@@ -63,15 +64,3 @@ class AgentServer(AgentService):
         finally:
             receive_task.cancel()
             await self.session_mgr.close_session(client_session_id)
-
-    async def get_request(self, session_id):
-        session = await self.session_mgr.create_or_get_session(session_id)
-        async for request in session.get_request():
-            yield request
-
-    async def send_response(self, session_id, message):
-        session = await self.session_mgr.create_or_get_session(session_id)
-        await session.put_response(message)
-
-    def list_sessions(self):
-        return list(self.session_mgr.active_sessions.keys())

@@ -13,11 +13,11 @@ from grpc_service.type import AgentMessage, SessionStatus
 
 
 class AgentClientSession:
-    def __init__(self, stream_stream_call, session_id=None, timeout=1e9):
+    def __init__(self, stream_stream_call, timeout=1e9):
         self.stream_stream_call = stream_stream_call
         self.timeout = timeout
 
-        self.session_id =  session_id
+        self.session_id =  None
         self.active_session = None
         self.response_queue = None
         self._receive_task = None
@@ -47,14 +47,14 @@ class AgentClientSession:
     def _cleanup(self):
         if self.active_session:
             self.active_session.cancel()
-        del self.response_queue
+        self.response_queue = asyncio.Queue()
         self._running = False
 
     async def activate(self):
-        if not self.session_id:
-            _time = str(time.strftime('%Y%m%d_%H%M%S', time.localtime()))
-            _uuid = str(uuid.uuid4())
-            self.session_id = f"agent_session_{_uuid}_{_time}"
+        _time = str(time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+        _uuid = str(uuid.uuid4())
+        session_id = f"agent_session_{_uuid}_{_time}"
+        self.session_id = session_id
         self.active_session = asyncio.Future()
         self.response_queue = asyncio.Queue()
         self._running = True
@@ -62,7 +62,7 @@ class AgentClientSession:
         if self._receive_task is None or self._receive_task.done():
             self._receive_task = asyncio.create_task(self._handle_response())
 
-        return self.session_id
+        return session_id
 
     async def stream_responses(self):
         """obtain continuous response"""
@@ -104,20 +104,54 @@ class AgentClientSession:
 class AgentServerSession:
     """A single session instance on the server side"""
 
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, process_request_func: Callable):
         """
         Args:
             session_id (str): The session ID.
+            process_request_func (Callable): The function to process requests.
         """
         self.session_id = session_id
-        self.request_queue = None
-        self.response_queue = None
+        self.process_request_func = process_request_func
+        self.request_queue = asyncio.Queue()
+        self.response_queue = asyncio.Queue()
         self._is_active = False
+        self._processor_task = None
+
+    async def _process_requests(self):
+        """asynchronous processing of requests"""
+        try:
+            while self._is_active or not self.request_queue.empty():
+                # get request
+                try:
+                    request = await asyncio.wait_for(
+                        self.request_queue.get(),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    continue
+
+                response = await self.process_request_func(request)
+                # TODO: log
+                # print(f"Processing request: {request.content[0]._text} -> {response.content[0]._text}, status: {response.session_status}")
+                if response.session_status not in [SessionStatus.HOLD_RESPONSE, SessionStatus.STOP_RESPONSE]:
+                    # print("Invalid session status in response")
+                    raise RuntimeError(f"Invalid session status in response: {response.session_status}")
+                    
+                await self.response_queue.put(response)
+
+                # flag done
+                self.request_queue.task_done()
+        except RuntimeError as e:
+            await self.response_queue.put(e)
+            raise
+        except asyncio.CancelledError:
+            pass
+        finally:
+            pass
 
     async def activate(self):
         self._is_active = True
-        self.request_queue = asyncio.Queue()
-        self.response_queue = asyncio.Queue()
+        self._processor_task = asyncio.create_task(self._process_requests())
 
         return self
 
@@ -125,22 +159,19 @@ class AgentServerSession:
         if self._is_active:
             await self.request_queue.put(message)
 
-    async def get_request(self):
-        while self._is_active or not self.request_queue.empty():
-            request = await self.request_queue.get()
-            yield request
-
-    async def put_response(self, message: AgentMessage):
-        if self._is_active:
-            await self.response_queue.put(message)
-
     async def get_response(self):
         while self._is_active or not self.response_queue.empty():
             response = await self.response_queue.get()
+            if isinstance(response, Exception):
+                print(f"Error in session {self.session_id}: {response}")
+                self.close()
+                raise response
             yield response
 
     async def close(self):
         self._is_active = False
+        if self._processor_task:
+            self._processor_task.cancel()
 
 
 class AgentServerSessionManager:
