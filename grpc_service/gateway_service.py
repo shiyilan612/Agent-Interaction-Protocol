@@ -37,7 +37,7 @@ class GatewayService(GatewayServiceServicer):
         # gRPC server for this tool service
         self._server = None
         
-        self._logger_mgr = LoggerManager()
+        self._logger_mgr = LoggerManager(self.gateway_id)
         self._logger = self._logger_mgr.get_logger(self.gateway_id)
 
         # stubs of nodes connected to this tool service

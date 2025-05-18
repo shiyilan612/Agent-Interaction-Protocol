@@ -6,7 +6,7 @@ import importlib
 from pathlib import Path
 
 class LoggerManager:
-    def __init__(self, config_path=None):
+    def __init__(self, default_filename=__name__, config_path=None):
         """
         Initialize the LoggerManager.
         Args:
@@ -15,13 +15,21 @@ class LoggerManager:
         if not config_path:
             config_path = Path(__file__).resolve().parent / 'logging.yaml'
             
-        self.log_dir = Path(__file__).resolve().parent.parent / 'logs'
+        self.log_dir = Path().cwd() / 'logs'
         if not self.log_dir.exists():
             self.log_dir.mkdir(parents=True, exist_ok=True)
+            
+        self.default_logger_log_dir = self.log_dir / default_filename
+        if not self.default_logger_log_dir.exists():
+            self.default_logger_log_dir.mkdir(parents=True, exist_ok=True)
+            
+        print("config_path", config_path)
         
         if config_path.exists():
             with open(config_path, 'r', encoding = 'utf-8') as f:
                 config = yaml.safe_load(stream=f)
+                
+            config['handlers']['host_handler']['filename'] = str(self.default_logger_log_dir / f"{default_filename}.log")
                         
             logging.config.dictConfig(config)
         else:
