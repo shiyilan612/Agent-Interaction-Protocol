@@ -34,7 +34,7 @@ class Gateway:
         # Create the gateway service
         self._host = None
         
-        self._logger_mgr = LoggerManager()
+        self._logger_mgr = LoggerManager(self.gateway_id)
         self._logger = self._logger_mgr.get_logger(self.gateway_id)
 
     async def start(self):

@@ -49,7 +49,7 @@ class ToolService(ToolServiceServicer):
         # gRPC server for this tool service
         self._server = None
         
-        self._logger_mgr = LoggerManager()
+        self._logger_mgr = LoggerManager(self.tool_id)
         self._logger = self._logger_mgr.get_logger(self.tool_id)
 
         # stubs of nodes connected to this tool service
