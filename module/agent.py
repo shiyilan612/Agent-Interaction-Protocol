@@ -71,9 +71,6 @@ class Agent:
         # Gateway connection
         self._gateway_address = None
         
-        # Message processing function
-        self._process_request_func = None
-        
         # Task management
         self._tasks: Dict[str, TaskInfo] = {}
         self._task_counter = 0
@@ -96,19 +93,9 @@ class Agent:
         )
         return agent_info
     
-    def set_process_request_handler(self, handler: Callable):
-        """
-        Set the function to handle incoming requests.
-        
-        Args:
-            handler: A callable that processes AgentMessage requests and returns AgentMessage responses
-        """
-        self._process_request_func = handler
-        return self
-    
     async def start(self):
         """Start the agent server."""
-        self._server = AgentServer(self.agent_info, self._process_request_func)
+        self._server = AgentServer(self.agent_info)
         await self._server.start()
         return self
     
@@ -306,11 +293,10 @@ class Agent:
 
     async def create_agent_client(
             self, receiver_id,
-            session_id=None,
             stub=GatewayServiceStub,
             stream_calling="RouteAgentCalling"
     ):
-        client = AgentClient(session_id)
+        client = AgentClient()
         session_id = await client.start(self._gateway_address, stub, stream_calling)
         self._agent_clients[(session_id, receiver_id)] = client
 
@@ -382,7 +368,7 @@ class Agent:
             session_status=session_status
         )
         
-        await client.send_message(message)
+        await client.send_request(message)
 
     async def receive_feedback(self, session_id: str, receiver_id: str) -> AgentMessage:
         """
@@ -397,10 +383,10 @@ class Agent:
     async def submit_feedback(self,
                               session_id: str,
                               receiver_id: str,
-                              task_info: TaskInfo,
                               content: Union[str, bytes, List[Union[str, bytes]]],
                               content_mode: Optional[Union[Mode, List[Mode]]] = None,
-                              session_status: SessionStatus = None) -> AgentMessage:
+                              session_status: SessionStatus = None,
+                              task_info: TaskInfo = None):
         """
         Send a feedback to another agent client.
         """
@@ -423,11 +409,25 @@ class Agent:
         # send response
         await self._server.send_response(session_id, message)
 
-    async def receive_inquiry(self, session_id: str) -> AgentMessage:
+    async def receive_inquiry(self) -> AgentMessage:
         """
         get an inquiry from another agent client.
         """
-        return await self._server.get_request(session_id)
+        return await self._server.receive_request()
+
+    async def invoke_session_handlers(self, session_id: str, handlers: List[Callable]):
+        results = list()
+
+        async def send_handlers(handlers_list):
+            for handler in handlers_list:
+                await self._server.send_session_handler(session_id, handler)
+
+        asyncio.create_task(send_handlers(handlers))
+
+        for i in range(len(handlers)):
+            results.append(await self._server.get_session_output(session_id))
+
+        return results
 
     def create_tool_request(self, 
                             receiver_id: str, 

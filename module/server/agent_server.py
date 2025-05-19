@@ -18,6 +18,18 @@ class AgentServer(AgentService):
         super().__init__(agent_info.to_grpc())
         self.session_mgr = AgentServerSessionManager(self._logger)
 
+    async def receive_request(self):
+        return await self.session_mgr.get_request()
+
+    async def send_response(self, session_id: str, message: AgentMessage):
+        return await self.session_mgr.put_response(session_id, message)
+
+    async def send_session_handler(self, session_id: str, handler: Callable):
+        return await self.session_mgr.put_session_handler(session_id, handler)
+
+    async def get_session_output(self, session_id: str):
+        return await self.session_mgr.get_session_output(session_id)
+
     async def CallAgent(self, request_iterator, context):
         # Phase I: Receive the first package and verify the START QUEST
         try:
@@ -57,11 +69,11 @@ class AgentServer(AgentService):
 
         # Phase II: Handle the flowed messages
         async def receive_requests():
-            await session.put_request(first_message)
+            await self.session_mgr.put_request(first_message)
             async for request in request_iterator:
                 self._logger.debug(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
                                f"Received request")
-                await session.put_request(AgentMessage.from_grpc(request))
+                await self.session_mgr.put_request(AgentMessage.from_grpc(request))
 
         receive_task = asyncio.create_task(receive_requests())
 
