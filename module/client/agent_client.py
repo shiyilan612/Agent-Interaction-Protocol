@@ -33,12 +33,12 @@ class AgentClient:
 
         return session_id
 
-    async def send_message(self, message: AgentMessage):
+    async def send_request(self, request: AgentMessage):
         if not self.session:
             raise RuntimeError("Not connected")
-        message.session_id = self.session.session_id
-        await self.session.send(message)
-        if message.session_status == SessionStatus.START_QUEST:
+        request.session_id = self.session.session_id
+        await self.session.send(request)
+        if request.session_status == SessionStatus.START_QUEST:
             self.occupied = True
 
     async def wait_completion(self):

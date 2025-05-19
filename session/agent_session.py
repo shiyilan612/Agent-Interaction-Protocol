@@ -17,7 +17,7 @@ class AgentClientSession:
         self.stream_stream_call = stream_stream_call
         self.timeout = timeout
 
-        self.session_id =  None
+        self.session_id = None
         self.active_session = None
         self.response_queue = None
         self._receive_task = None
@@ -98,44 +98,29 @@ class AgentClientSession:
 class AgentServerSession:
     """A single session instance on the server side"""
 
-    def __init__(self, session_id: str, process_request_func: Callable):
+    def __init__(self, session_id: str):
         """
         Args:
             session_id (str): The session ID.
-            process_request_func (Callable): The function to process requests.
         """
         self.session_id = session_id
-        self.process_request_func = process_request_func
-        self.request_queue = asyncio.Queue()
+        self.handler_queue = asyncio.Queue()
+        self.output_queue = asyncio.Queue()
         self.response_queue = asyncio.Queue()
+
         self._is_active = False
         self._processor_task = None
 
-    async def _process_requests(self):
-        """asynchronous processing of requests"""
+    async def _process_handlers(self):
+        """asynchronous processing of server handles"""
         try:
-            while self._is_active or not self.request_queue.empty():
-                # get request
-                try:
-                    request = await asyncio.wait_for(
-                        self.request_queue.get(),
-                        timeout=1.0
-                    )
-                except asyncio.TimeoutError:
-                    continue
+            while self._is_active:
+                handler = await self.handler_queue.get()
+                output = await handler()
+                await self.output_queue.put(output)
 
-                response = await self.process_request_func(request)
-
-                if response.session_status not in [SessionStatus.HOLD_RESPONSE, SessionStatus.STOP_RESPONSE]:
-                    raise RuntimeError(f"Invalid session status in response: {response.session_status}")
-                    
-                await self.response_queue.put(response)
-
-                # flag done
-                self.request_queue.task_done()
         except RuntimeError as e:
-            await self.response_queue.put(e)
-            raise
+            raise e
         except asyncio.CancelledError:
             pass
         finally:
@@ -143,20 +128,22 @@ class AgentServerSession:
 
     async def activate(self):
         self._is_active = True
-        self._processor_task = asyncio.create_task(self._process_requests())
+        self._processor_task = asyncio.create_task(self._process_handlers())
 
         return self
 
-    async def put_request(self, message: AgentMessage):
-        if self._is_active:
-            await self.request_queue.put(message)
+    async def put_handler(self, handler: Callable):
+        await self.handler_queue.put(handler)
+
+    async def get_output(self):
+        return await self.output_queue.get()
+
+    async def put_response(self, message: AgentMessage):
+        await self.response_queue.put(message)
 
     async def get_response(self):
         while self._is_active or not self.response_queue.empty():
             response = await self.response_queue.get()
-            if isinstance(response, Exception):
-                self.close()
-                raise response
             yield response
 
     async def close(self):
@@ -170,31 +157,45 @@ class AgentServerSessionManager:
 
     def __init__(self, logger: logging.Logger):
         self.active_sessions: Dict[str, AgentServerSession] = {}
+        self.request_queue = asyncio.Queue()
         self._lock = asyncio.Lock()
         self._logger = logger
 
-    async def create_or_get_session(self, 
-                                    session_id: str, 
-                                    client_id: str,
-                                    process_request_func: Callable) -> AgentServerSession:
+    async def get_request(self):
+        return await self.request_queue.get()
+
+    async def put_request(self, message: AgentMessage):
+        await self.request_queue.put(message)
+
+    async def put_response(self, session_id: str, message: AgentMessage):
+        await self.active_sessions[session_id].put_response(message)
+
+    async def put_session_handler(self, session_id: str, handler: Callable):
+        await self.active_sessions[session_id].put_handler(handler)
+
+    async def get_session_output(self, session_id: str):
+        return await self.active_sessions[session_id].get_output()
+
+    async def create_or_get_session(self,
+                                    session_id: str,
+                                    client_id: str) -> AgentServerSession:
         """
         Create a new session or return an existing one.
         Args:
             session_id (str): The session ID.
             client_id (str): The client ID.
-            process_request_func (Callable): The function to process requests.
         Returns:
             AgentServerSession: The session object.
         """
         async with self._lock:
             if session := self.active_sessions.get(session_id):
                 return session
-            new_session = AgentServerSession(session_id, process_request_func)
+            new_session = AgentServerSession(session_id)
             await new_session.activate()
             self.active_sessions[session_id] = new_session
 
             self._logger.debug(f"<Agent>: Session [{session_id}] created for processing requests of"
-                              f" Agent [{client_id}]")
+                               f" Agent [{client_id}]")
             return new_session
 
     async def close_session(self, session_id: str):
