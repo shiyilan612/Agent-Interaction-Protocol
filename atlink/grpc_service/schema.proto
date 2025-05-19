@@ -1,0 +1,243 @@
+// python -m grpc_tools.protoc -I=. --python_out=. --grpc_python_out=. path/to/schema.proto
+
+syntax = "proto3";
+
+package grpc_service;
+
+/* message modality */
+enum Mode {
+  TEXT = 0;
+  IMAGE = 1;
+  AUDIO = 2;
+  EMBEDDED = 3;
+}
+
+/* content */
+message ContentItem {
+  oneof data{
+    string text = 1;
+    bytes image = 2;
+    bytes audio = 3;
+    bytes embedded = 4;
+  }
+}
+
+/* peer info */
+message Peer {
+  oneof info_type {
+    AgentInfo agent_info = 1;
+    ToolInfo tool_info = 2;
+  }
+}
+
+/* 注册信息 */
+message AgentInfo {  // Agent注册信息
+  string agent_id = 1;
+  string address = 2;
+  string name = 3; //可定义角色
+  string domain = 4;      //可对Agent分组
+  repeated Mode input_mode = 5;
+  repeated Mode output_mode = 6;
+  string description = 7;
+  message AgentSkill {
+    string skill_id = 1;
+    string capability = 2;
+  }
+  repeated AgentSkill skills= 8;
+  string version = 9;
+}
+
+message RegisterAgentResponse { // Agent注册响应信息
+  bool success = 1;
+  repeated Peer peers = 2;
+}
+
+message ToolInfo {  // Tool注册信息
+  string tool_id = 1;
+  string address = 2;
+  string name = 3;
+  string domain = 4;  //可对Tool分组
+  repeated Mode input_mode = 5;
+  repeated Mode output_mode = 6;
+  string description = 7;
+  map<string, string> arguments = 8;
+  string version = 9;
+}
+
+message RegisterToolResponse { // Tool注册响应信息
+  bool success = 1;
+}
+
+message DeregisterNodeRequest { // Node取消注册请求信息
+  string node_id = 1;
+}
+
+message DeregisterNodeResponse { // Node取消注册响应信息
+  bool success = 1;
+}
+
+/* 节点清单获取 */
+message GetNodesRequest {
+  string agent_id = 1;  // 请求Agent的ID
+  string domain = 2;
+}
+
+message GetNodesResponse {
+  repeated Peer peers = 1;
+}
+
+/* Agent交互 */
+message TaskInfo { // 任务信息
+  string task_id = 1;
+  repeated string parent_task_ids = 2;
+  enum TaskStatus {
+    CREATE=0;
+    EXECUTING = 1;
+    WAITING = 2;
+    BREAK = 3;
+    FINISH = 4;
+  }
+  TaskStatus task_status = 4;
+}
+
+message AgentMessage { // Agent消息
+  string sender_id = 1;
+  string receiver_id = 2;
+  string session_id = 3;
+  enum SessionStatus {
+    START_QUEST = 0;
+    HOLD_QUEST = 1;
+    HOLD_RESPONSE = 2;
+    STOP_QUEST = 3;
+    STOP_RESPONSE = 4;
+  }
+  SessionStatus session_status = 4;
+  TaskInfo task_info = 5;
+  string message_id = 6;
+  string reply_to_message_id = 7; // 回复哪条消息
+  repeated ContentItem content = 8;
+}
+
+/* Tool调用 */
+message ToolRequest {
+  string sender_id = 1;
+  string receiver_id = 2;
+  string session_id = 3;
+  string tool_name = 4;
+  map<string, string> arguments = 5;
+}
+
+message ToolResponse {
+  string sender_id = 1;
+  string receiver_id = 2;
+  string session_id = 3;
+  bool is_error = 4;
+  string error_message = 5;
+  repeated ContentItem content = 6;
+}
+
+
+
+/* 心跳监测 */
+message HeartbeatRequest {
+  string sender_id = 1;
+}
+
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+
+/* 节点更新 */
+message UpdateNodeInfoRequest {
+    string sender_id = 1;
+    Peer peer = 2;
+}
+
+message UpdateNodeInfoResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+/* 更新订阅 */
+message UpdateSubscriptionRequest {
+  string subscriber_id = 1;
+  repeated string node_ids = 2;  // If empty, subscribe to all nodes
+}
+
+/* 节点更新通知 */
+message NodeUpdate {
+  enum UpdateType {
+    ADDED = 0;
+    UPDATED = 1;
+    REMOVED = 2;
+  }
+  UpdateType update_type = 1;
+  string node_id = 2;
+  Peer peer = 3;  // Not included when update_type is REMOVED
+}
+
+/* 取消订阅 */
+message UnsubscribeRequest {
+  string subscriber_id = 1;
+  repeated string node_ids = 2;  // Nodes to unsubscribe from. If empty, unsubscribe from all nodes
+}
+
+message UnsubscribeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+
+/*  Agent服务定义 */
+service AgentService {
+  // Agent之间双向流式通信接口
+  rpc CallAgent(stream AgentMessage) returns (stream AgentMessage) {};
+}
+
+
+/*  Tool服务定义 */
+service ToolService {
+  // Tool调用
+  rpc CallTool(ToolRequest) returns (ToolResponse) {};
+}
+
+
+
+/*  网关服务定义 */
+service GatewayService {
+  // Agent消息路由（双向流）
+  rpc RouteAgentCalling(stream AgentMessage) returns (stream AgentMessage) {};
+
+  // Tool调用路由
+  rpc RouteToolCalling(ToolRequest) returns (ToolResponse) {};
+  
+  // Agent注册,返回节点清单
+  rpc RegisterAgent(AgentInfo) returns (RegisterAgentResponse) {};
+
+  // Tool注册
+  rpc RegisterTool(ToolInfo) returns (RegisterToolResponse) {};
+
+  // Node取消注册
+  rpc DeregisterNode(DeregisterNodeRequest) returns (DeregisterNodeResponse) {};
+
+  // Agent获取节点清单
+  rpc GetNodes(GetNodesRequest) returns (GetNodesResponse) {};
+  
+  // Agent和Tool心跳监测
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse) {};
+  
+  // 节点信息更新
+  rpc UpdateNodeInfo(UpdateNodeInfoRequest) returns (UpdateNodeInfoResponse) {};
+  
+  // 节点订阅更新
+  rpc SubscribeToUpdates(UpdateSubscriptionRequest) returns (stream NodeUpdate) {};
+  
+  // 节点取消订阅
+  rpc Unsubscribe(UnsubscribeRequest) returns (UnsubscribeResponse) {};
+
+}
+
+
+
