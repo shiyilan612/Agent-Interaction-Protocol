@@ -1,4 +1,4 @@
-# ACP Python SDK
+# ATLink Python SDK
 
 ## Overview
 
@@ -7,10 +7,10 @@
 
 ## Setup
 ```
-git clone https://gitee.com/haixinwa/acp.git
-cd ./acp
+git clone https://gitee.com/haixinwa/AgentLinkProtocol.git
+cd ./AgentLinkProtocol
 pip install -r requirements.txt
-python -m grpc_tools.protoc -I=. --python_out=. --grpc_python_out=. grpc_service/schema.proto
+python -m grpc_tools.protoc -I=. --python_out=. --grpc_python_out=. atlink/grpc_service/schema.proto
 ```
 
 ## Simple Service Test
