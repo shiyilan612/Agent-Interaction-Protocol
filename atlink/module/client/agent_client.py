@@ -6,8 +6,8 @@ Created on Mon Apr 21 12:00:00 2025
 """
 import grpc
 import asyncio
-from grpc_service.type import AgentMessage, SessionStatus
-from session import AgentClientSession
+from ...grpc_service.type import AgentMessage, SessionStatus
+from ...session import AgentClientSession
 
 
 class AgentClient:

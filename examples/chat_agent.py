@@ -1,8 +1,8 @@
 import asyncio
 import argparse
 from functools import partial
-from grpc_service.type import AgentMessage, SessionStatus, ContentItem, Mode
-from module import Agent
+from atlink.grpc_service.type import AgentMessage, SessionStatus, ContentItem, Mode
+from atlink.module import Agent
 
 
 async def delayed_process_request_func(message: AgentMessage, delay: float) -> AgentMessage:

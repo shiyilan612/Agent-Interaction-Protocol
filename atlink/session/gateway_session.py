@@ -9,9 +9,9 @@ import asyncio
 import grpc
 import logging
 from typing import Dict, Union
-from grpc_service import AgentServiceStub, GatewayServiceStub
-from grpc_service.type import AgentMessage
-from logger import LoggerManager
+from ..grpc_service import AgentServiceStub, GatewayServiceStub
+from ..grpc_service.type import AgentMessage
+from ..logger import LoggerManager
 
 class GatewaySession:
     """A Gateway session to manage one stream for communication between Agents"""

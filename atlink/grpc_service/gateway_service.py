@@ -13,7 +13,7 @@ import asyncio
 import time
 from typing import Dict, Union, AsyncIterable, Set
 from .utils import ConnectionPool
-from logger import LoggerManager
+from ..logger import LoggerManager
 
 # Import the generated proto modules
 from .schema_pb2_grpc import GatewayServiceServicer, add_GatewayServiceServicer_to_server

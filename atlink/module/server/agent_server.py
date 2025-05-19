@@ -8,9 +8,9 @@ import grpc
 import asyncio
 from typing import Callable
 
-from grpc_service import AgentService
-from grpc_service.type import AgentMessage, AgentInfo, SessionStatus
-from session import AgentServerSessionManager
+from ...grpc_service import AgentService
+from ...grpc_service.type import AgentMessage, AgentInfo, SessionStatus
+from ...session import AgentServerSessionManager
 
 
 class AgentServer(AgentService):

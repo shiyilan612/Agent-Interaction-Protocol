@@ -12,9 +12,9 @@ import json
 from functools import partial
 from typing import Dict, List, Optional, Tuple, Union
 
-from grpc_service.type import AgentInfo, ToolInfo, AgentMessage, ToolRequest, ToolResponse
-from grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
-from module.agent import Agent
+from atlink.grpc_service.type import AgentInfo, ToolInfo, AgentMessage, ToolRequest, ToolResponse
+from atlink.grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
+from atlink.module.agent import Agent
 
 
 class LLMConfig:

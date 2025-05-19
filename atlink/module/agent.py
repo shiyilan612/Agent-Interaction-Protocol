@@ -10,13 +10,13 @@ import uuid
 import time
 from typing import Dict, List, Optional, Callable, Any, Union
 
-from grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolRequest, ToolResponse
-from grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
-from grpc_service import AgentServiceStub, GatewayServiceStub, ToolServiceStub
-from module.client import AgentClient
-from module.server import AgentServer
-from module.client import ToolClient
-from logger import LoggerManager
+from ..grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolRequest, ToolResponse
+from ..grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
+from ..grpc_service import AgentServiceStub, GatewayServiceStub, ToolServiceStub
+from ..module.client import AgentClient
+from ..module.server import AgentServer
+from ..module.client import ToolClient
+from ..logger import LoggerManager
 
 
 class Agent:

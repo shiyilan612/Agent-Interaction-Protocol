@@ -1,9 +1,6 @@
 # run_gateway.py
-import sys
-import os
 import asyncio
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from module import Gateway
+from atlink.module import Gateway
 
 async def main():
     gateway = Gateway(address="localhost:50050", gateway_id="test_gw")

@@ -8,7 +8,7 @@ import time
 import uuid
 import asyncio
 from typing import Optional, Callable
-from grpc_service.type import ToolRequest, ToolResponse
+from ..grpc_service.type import ToolRequest, ToolResponse
 
 
 class ToolClientSession:

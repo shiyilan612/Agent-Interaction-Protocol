@@ -13,10 +13,10 @@ import aiohttp
 import json
 from typing import Dict, Callable, Any, Optional, List, Union
 
-from grpc_service.type import ToolInfo, ToolRequest, ToolResponse, Mode, ContentItem
-from grpc_service import ToolServiceStub
-from module.server import ToolServer
-from logger import LoggerManager
+from ..grpc_service.type import ToolInfo, ToolRequest, ToolResponse, Mode, ContentItem
+from ..grpc_service import ToolServiceStub
+from ..module.server import ToolServer
+from ..logger import LoggerManager
 
 
 
