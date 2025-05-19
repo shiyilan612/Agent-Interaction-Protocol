@@ -11,7 +11,7 @@ import grpc
 import asyncio
 from typing import Dict, Union, AsyncIterable, List
 from .utils import ConnectionPool
-from logger import LoggerManager
+from ..logger import LoggerManager
 
 # Import the generated proto modules
 from .schema_pb2_grpc import AgentServiceServicer, add_AgentServiceServicer_to_server

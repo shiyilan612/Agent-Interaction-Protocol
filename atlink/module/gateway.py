@@ -8,9 +8,9 @@ Created on Thu Apr 24 16:00:41 2025
 import uuid
 from typing import Dict, List, Union
 
-from grpc_service.type import AgentInfo, ToolInfo
-from module.host import GatewayHost
-from logger import LoggerManager
+from ..grpc_service.type import AgentInfo, ToolInfo
+from ..module.host import GatewayHost
+from ..logger import LoggerManager
 
 class Gateway:
     """

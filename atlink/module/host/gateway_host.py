@@ -9,10 +9,10 @@ import grpc
 import asyncio
 from typing import Dict, AsyncIterable
 
-from grpc_service import GatewayService
-from grpc_service.type import AgentInfo, ToolInfo, AgentMessage, SessionStatus
-from grpc_service import schema_pb2 as pb2
-from session import GatewaySessionMagager, GatewaySession
+from ...grpc_service import GatewayService
+from ...grpc_service.type import AgentInfo, ToolInfo, AgentMessage, SessionStatus
+from ...grpc_service import schema_pb2 as pb2
+from ...session import GatewaySessionMagager, GatewaySession
 
 class GatewayHost(GatewayService):
     def __init__(self,

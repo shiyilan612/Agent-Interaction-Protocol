@@ -9,7 +9,7 @@ import time
 import asyncio
 import logging
 from typing import Dict, Callable
-from grpc_service.type import AgentMessage, SessionStatus
+from ..grpc_service.type import AgentMessage, SessionStatus
 
 
 class AgentClientSession:

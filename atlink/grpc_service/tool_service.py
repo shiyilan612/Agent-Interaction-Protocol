@@ -10,7 +10,7 @@ Created on Fri Apr 18 10:01:08 2025
 import grpc
 import asyncio
 from .utils import ConnectionPool
-from logger import LoggerManager
+from ..logger import LoggerManager
 
 # Import the generated proto modules
 from .schema_pb2_grpc import ToolServiceServicer, add_ToolServiceServicer_to_server

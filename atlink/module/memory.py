@@ -7,9 +7,9 @@ Created on Tue May 13 14:27:30 2025
 import os
 import time
 import logging
-from typing import Optional
-from grpc_service.type import AgentMessage, ToolRequest, ToolResponse
+from typing import Union
 from tinydb import TinyDB, Query
+from ..grpc_service.type import AgentMessage, ToolRequest, ToolResponse
 
 
 class ContextMemory:
@@ -36,7 +36,7 @@ class ContextMemory:
             logging.error(e)
             return False
 
-    def write(self, task_id, message: Optional[AgentMessage, ToolRequest, ToolResponse]):
+    def write(self, task_id, message: Union[AgentMessage, ToolRequest, ToolResponse]):
         db = self.dbs.get(task_id)
         if db is None:
             logging.error(f"Memory of {task_id} is not existed")
