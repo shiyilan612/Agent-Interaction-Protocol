@@ -8,9 +8,9 @@ Created on Thu Apr 24 23:39:08 2025
 # -*- coding: utf-8 -*-
 import grpc
 import aiohttp
-from grpc_service import ToolService
-from grpc_service.type import ToolInfo
-from grpc_service import schema_pb2 as pb2
+from ...grpc_service import ToolService
+from ...grpc_service.type import ToolInfo
+from ...grpc_service import schema_pb2 as pb2
 
 
 class MCPToolServerProxy(ToolService):
