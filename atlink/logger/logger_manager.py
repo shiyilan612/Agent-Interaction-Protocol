@@ -1,110 +1,165 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu May 15 09:36:11 2025
+
+@author: clleng
+"""
+
 import logging
-import logging.config
 import logging.handlers
-import yaml
-import importlib
+import os
 from pathlib import Path
+from typing import List, Dict
 
 class LoggerManager:
-    def __init__(self, default_filename=__name__, config_path=None):
+    """
+    A singleton class to manage logging configuration and provide logger instances.
+    This class allows for the creation of loggers with different handlers and levels,
+    and ensures that loggers are reused if they already exist.
+    It supports various types of handlers including stream, file, rotating file,
+    and timed rotating file handlers.
+    Attributes:
+        log_dir (Path): Directory where log files will be stored, default is 'logs'.
+        default_handlers (List[Dict[str, str]]): Default handlers to be used for loggers.
+    """
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.value = 10  
+        return cls._instance
+    
+    def __init__(self):
         """
         Initialize the LoggerManager.
-        Args:
-            config_path: Path to the YAML configuration file
         """
-        if not config_path:
-            config_path = Path(__file__).resolve().parent / 'logging.yaml'
+        if not hasattr(self, '_loggers'):
+            self._loggers = {}
             
-        self.log_dir = Path().cwd() / 'logs'
-        if not self.log_dir.exists():
-            self.log_dir.mkdir(parents=True, exist_ok=True)
+            self.log_dir = Path().cwd() / 'logs'
+            if not self.log_dir.exists():
+                self.log_dir.mkdir(parents=True, exist_ok=True)
             
-        self.default_logger_log_dir = self.log_dir / default_filename
-        if not self.default_logger_log_dir.exists():
-            self.default_logger_log_dir.mkdir(parents=True, exist_ok=True)
-            
-        print("config_path", config_path)
+            self.default_handlers = [
+                # console handler
+                {
+                    'type': 'stream',
+                    'level': 'INFO',
+                },
+                # timed rotating file handler
+                {
+                    'type': 'timed_rotating_file',
+                    'when': 'midnight',
+                    'interval': 1,
+                    'backupCount': 7
+                }
+            ]            
+    
+    def get_logger(self, 
+                   name: str, 
+                   level: str=None, 
+                   handlers: List[Dict[str, str]]=None) -> logging.Logger:
+        """
+        Create or get a logger with the specified name, and set its level and handlers.
         
-        if config_path.exists():
-            with open(config_path, 'r', encoding = 'utf-8') as f:
-                config = yaml.safe_load(stream=f)
-                
-            config['handlers']['host_handler']['filename'] = str(self.default_logger_log_dir / f"{default_filename}.log")
-                        
-            logging.config.dictConfig(config)
-        else:
-            raise FileNotFoundError(f"Logging config file not found: {config_path}")
-        
-        self.handlers = {}
-        for handler_name, handler_config in config.get('handlers', {}).items():
-            self.handlers[handler_name] = handler_config.copy()
+        Args:
+            name: Name of the logger
+            level: Logging level (e.g., DEBUG, INFO, WARNING, ERROR, CRITICAL)
+            handlers: List of handlers to be added to the logger (e.g., 
+            [
+                {'type': 'stream', 'level': 'DEBUG', 
+                'formatter': {'fmt': '%(asctime)s - %(name)s - %(levelname)s - %(message)s', 'datefmt': '%Y-%m-%d %H:%M:%S'}},
+                {'type': 'file', 'filename': 'host.log', 'level': 'INFO'},
+                {'type': 'rotating_file', 'filename': 'host_rotating.log', 'maxBytes': 1024 * 1024 * 5, 'backupCount': 5},
+                {'type': 'timed_rotating_file', 'filename': 'host_timed.log', 'when': 'midnight', 'interval': 1, 'backupCount': 7}
+            ])
             
-        self.formatters = {}
-        for formatter_name, formatter_config in config.get('formatters', {}).items():
-            self.formatters[formatter_name] = formatter_config.copy()
-            
-    def get_logger(self, name=__name__):
+        Returns:
+            logger: Configured logger instance
+        """
         
-        if name in logging.Logger.manager.loggerDict:
-            return logging.getLogger(name)
-            
-        logger = logging.getLogger(name)
+        if name in self._loggers:
+            return self._loggers[name]
         
+        # Create a directory for the logger if it doesn't exist
         logger_log_dir = self.log_dir / name
         if not logger_log_dir.exists():
             logger_log_dir.mkdir(parents=True, exist_ok=True)
-            
-        log_filename = logger_log_dir / f"{name}.log"
-
-        handler = self.create_handler('host_handler', str(log_filename))
-        logger.addHandler(handler)
-
-        logger.setLevel(logging.INFO)
         
+        # Create a new logger
+        logger = logging.getLogger(name)
+        self._loggers[name] = logger
+        
+        # Set the logger level
+        # If level is not provided, use the environment variable or default to INFO
+        level = level if level else os.getenv('ATLINLK_LOG_LEVEL', 'INFO').upper()
+        logger.setLevel(level)
+        
+        self.set_handlers(logger, name, handlers, logger_log_dir)
+                
         return logger
     
-    def create_handler(self, handler_name, finename):
+    def set_handlers(self, 
+                     logger: logging.Logger, 
+                     name: str, 
+                     handlers: List[Dict[str, str]]=None, 
+                     log_dir: Path=None):
         """
-        Create a new handler based on the specified handler name.
+        Set handlers for the logger.
         Args:
-            handler_name: Name of the handler to create
-            filename: Filename for the handler
+            logger: Logger instance to set handlers for
+            name: Name of the logger
+            handlers: List of handlers to be added to the logger (e.g., 
+            [
+                {'type': 'stream', 'level': 'DEBUG', 
+                'formatter': {'fmt': '%(asctime)s - %(name)s - %(levelname)s - %(message)s', 'datefmt': '%Y-%m-%d %H:%M:%S'}},
+                {'type': 'file', 'filename': 'host.log', 'level': 'INFO'},
+                {'type': 'rotating_file', 'filename': 'host_rotating.log', 'maxBytes': 1024 * 1024 * 5, 'backupCount': 5},
+                {'type': 'timed_rotating_file', 'filename': 'host_timed.log', 'when': 'midnight', 'interval': 1, 'backupCount': 7}
+            ])
+            log_dir: Directory where log files will be stored
         """
-        if handler_name in self.handlers:
-            handler_config = self.handlers[handler_name]
-            
-            module_path, class_name = handler_config['class'].rsplit('.', 1)
-            module = importlib.import_module(module_path)
-            handler_class = getattr(module, class_name)
-            
-            if handler_class == logging.handlers.TimedRotatingFileHandler:
-                handler = handler_class(
-                    filename=finename,
-                    when=handler_config['when'],
-                    interval=handler_config['interval'],
-                    backupCount=handler_config['backupCount'],
-                    encoding=handler_config.get('encoding', 'utf-8'),
-                    delay=handler_config.get('delay', False)
+        default_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        if handlers is None:
+            handlers = self.default_handlers
+        for handler_config in handlers:
+            handler_type = handler_config.get('type')
+            if handler_type == 'stream':
+                handler = logging.StreamHandler()
+            elif handler_type == 'file':
+                filename = log_dir / handler_config.get('filename', f'{name}.log')
+                handler = logging.FileHandler(str(filename))
+            elif handler_type == 'rotating_file':
+                filename = log_dir / handler_config.get('filename', f'{name}_rotating.log')
+                max_bytes = handler_config.get('maxBytes', 1024 * 1024 * 5)
+                backup_count = handler_config.get('backupCount', 5)
+                handler = logging.handlers.RotatingFileHandler(
+                    str(filename), maxBytes=max_bytes, backupCount=backup_count
                 )
-                handler.setLevel(getattr(logging, handler_config['level']))
-                handler.setFormatter(self.create_formatter(handler_config['formatter']))
-                
-                return handler
+            elif handler_type == 'timed_rotating_file':
+                filename = log_dir / handler_config.get('filename', f'{name}_timed.log')
+                when = handler_config.get('when', 'midnight')
+                interval = handler_config.get('interval', 1)
+                backup_count = handler_config.get('backupCount', 7)
+                handler = logging.handlers.TimedRotatingFileHandler(
+                    str(filename), when=when, interval=interval, backupCount=backup_count
+                )
             else:
-                raise ValueError(f"Unsupported handler class: {handler_class}")
-        else:
-            raise ValueError(f"Handler {handler_name} not found in configuration.")
-    
-    def create_formatter(self, formatter_name):
-        """
-        Create a new formatter based on the specified formatter name.
-        Args:
-            formatter_name: Name of the formatter to create
-        """
-        if formatter_name in self.formatters:
-            formatter_config = self.formatters[formatter_name]
-            return logging.Formatter(fmt=formatter_config['format'], 
-                                     datefmt=formatter_config.get('datefmt', None))
-        else:
-            raise ValueError(f"Formatter {formatter_name} not found in configuration.")
+                raise ValueError(f"<LoggerManager>: Unsupported handler type: {handler_type}")
+            
+            # Set handler level
+            handler_level = handler_config.get('level', 'NOTSET').upper()
+            handler.setLevel(handler_level)
+            
+            # Set formatter
+            if 'formatter' in handler_config:
+                formatter_args = handler_config['formatter']
+                formatter = logging.Formatter(**formatter_args)
+            else:
+                formatter = default_formatter
+                
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
     

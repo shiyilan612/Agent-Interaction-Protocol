@@ -99,7 +99,7 @@ class Tool:
         # Request processing function
         self._process_request_func = None
         
-        self._logger_mgr = LoggerManager(self.tool_id)
+        self._logger_mgr = LoggerManager()
         self._logger = self._logger_mgr.get_logger(self.tool_id)
         
     def _create_tool_info(self) -> ToolInfo:
