@@ -64,9 +64,9 @@ async def process_server_message(agent):
             await  agent.submit_feedback(
                 session_id=request.session_id,
                 receiver_id=request.sender_id,
+                request_session_status=request.session_status,
                 content=text,
-                content_mode=[Mode.TEXT],
-                session_status=SessionStatus.STOP_RESPONSE
+                content_mode=[Mode.TEXT]
             )
 
 async def main(agent_num: int, gateway_address: str):
@@ -98,7 +98,7 @@ async def main(agent_num: int, gateway_address: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent-num", type=int, required=True, help="Numeric agent ID, e.g. 1 for agent1")
-    parser.add_argument("--gateway-address", default="localhost:50000")
+    parser.add_argument("--gateway-address", default="localhost:50050")
 
     args = parser.parse_args()
 

@@ -8,7 +8,7 @@ import uuid
 import time
 import asyncio
 import logging
-from typing import Dict, Callable
+from typing import Dict, Callable, Optional
 from ..grpc_service.type import AgentMessage, SessionStatus
 
 
@@ -31,18 +31,12 @@ class AgentClientSession:
 
                 if response.session_status == SessionStatus.STOP_RESPONSE:
                     if self.active_session and not self.active_session.done():
-                        self.active_session.set_result(response)
+                        self.active_session.set_result(f"Receive [STOP_RESPONSE] from {response.sender_id}")
         except Exception as e:
             if self.active_session and not self.active_session.done():
                 self.active_session.set_exception(e)
             self._running = False
             raise
-
-    def _cleanup(self):
-        if self.active_session:
-            self.active_session.cancel()
-        self.response_queue = asyncio.Queue()
-        self._running = False
 
     async def activate(self):
         _time = str(time.strftime('%Y%m%d_%H%M%S', time.localtime()))
@@ -58,6 +52,11 @@ class AgentClientSession:
 
         return session_id
 
+    async def send(self, message):
+        if not self.active_session:
+            raise RuntimeError("Session not created")
+        await self.stream_stream_call.write(message.to_grpc())
+
     async def stream_responses(self):
         """obtain continuous response"""
         while self._running or not self.response_queue.empty():
@@ -66,6 +65,12 @@ class AgentClientSession:
             except asyncio.TimeoutError:
                 if not self._running:
                     break
+
+    def _cleanup(self):
+        if self.active_session:
+            self.active_session.cancel()
+        self.response_queue = asyncio.Queue()
+        self._running = False
 
     async def wait_for_stop(self):
         """wait for the final stop response"""
@@ -76,11 +81,6 @@ class AgentClientSession:
             raise TimeoutError(f"Session {self.session_id} timed out")
         finally:
             self._cleanup()
-
-    async def send(self, message):
-        if not self.active_session:
-            raise RuntimeError("Session not created")
-        await self.stream_stream_call.write(message.to_grpc())
 
     async def close(self):
         self._running = False
@@ -133,13 +133,16 @@ class AgentServerSession:
         return self
 
     async def put_handler(self, handler: Callable):
-        await self.handler_queue.put(handler)
+        if self._is_active:
+            await self.handler_queue.put(handler)
 
     async def get_output(self):
-        return await self.output_queue.get()
+        if self._is_active:
+            return await self.output_queue.get()
 
     async def put_response(self, message: AgentMessage):
-        await self.response_queue.put(message)
+        if self._is_active:
+            await self.response_queue.put(message)
 
     async def get_response(self):
         while self._is_active or not self.response_queue.empty():
@@ -168,17 +171,24 @@ class AgentServerSessionManager:
         await self.request_queue.put(message)
 
     async def put_response(self, session_id: str, message: AgentMessage):
-        await self.active_sessions[session_id].put_response(message)
+        if session := self.active_sessions.get(session_id):
+            await session.put_response(message)
+        else:
+            self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")
 
     async def put_session_handler(self, session_id: str, handler: Callable):
-        await self.active_sessions[session_id].put_handler(handler)
+        if session := self.active_sessions.get(session_id):
+            await session.put_handler(handler)
+        else:
+            self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")
 
     async def get_session_output(self, session_id: str):
-        return await self.active_sessions[session_id].get_output()
+        if session := self.active_sessions.get(session_id):
+            return await session.get_output()
+        else:
+            self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")
 
-    async def create_or_get_session(self,
-                                    session_id: str,
-                                    client_id: str) -> AgentServerSession:
+    async def create_session(self, session_id: str, client_id: str) -> Optional[AgentServerSession]:
         """
         Create a new session or return an existing one.
         Args:
@@ -188,8 +198,10 @@ class AgentServerSessionManager:
             AgentServerSession: The session object.
         """
         async with self._lock:
-            if session := self.active_sessions.get(session_id):
-                return session
+            if session_id in self.active_sessions:
+                self._logger.warning(f"Attempt to create an existed server session ({session_id}).")
+                return None
+
             new_session = AgentServerSession(session_id)
             await new_session.activate()
             self.active_sessions[session_id] = new_session
@@ -207,3 +219,5 @@ class AgentServerSessionManager:
         async with self._lock:
             if session := self.active_sessions.pop(session_id, None):
                 await session.close()
+            else:
+                self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")

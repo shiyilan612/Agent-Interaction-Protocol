@@ -58,7 +58,11 @@ class AgentServer(AgentService):
                 return
 
             # initialize the server session using the client session id
-            session = await self.session_mgr.create_or_get_session(session_id=client_session_id, client_id=sender_id)
+            session = await self.session_mgr.create_session(session_id=client_session_id, client_id=sender_id)
+            if not session:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details(f"Session_id [{client_session_id}] is already registered in server")
+                return
 
         except StopAsyncIteration:
             context.set_code(grpc.StatusCode.ABORTED)
@@ -82,6 +86,8 @@ class AgentServer(AgentService):
                 self._logger.debug(f"<Agent>: [AgentMessage {receiver_id} -> {sender_id}] "
                                f"Send response")
                 yield response.to_grpc()
+                if response.session_status == SessionStatus.STOP_RESPONSE:
+                    break
         except RuntimeError as e:
             self._logger.error(f"<Agent> Failed to get response for client Agnet [{sender_id}]"
                                 f" in session [{session.session_id}]"

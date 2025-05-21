@@ -146,7 +146,7 @@ class AgentService(AgentServiceServicer):
         add_AgentServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        self._logger.info(f"<Agent>: Agent [{self.agent_id}] started on [{self.address}]")
+        self._logger.info(f"<Agent>: Agent [{self.agent_id}] Server is started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         return self
