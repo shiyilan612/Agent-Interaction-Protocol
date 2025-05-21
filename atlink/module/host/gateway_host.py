@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thur Mon Apr 24 19:00:00 2025
+Created on Thu Apr 24 19:00:00 2025
 
 @author: clleng
 """

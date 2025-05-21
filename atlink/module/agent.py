@@ -75,7 +75,7 @@ class Agent:
         self._tasks: Dict[str, TaskInfo] = {}
         self._task_counter = 0
         
-        self._logger_mgr = LoggerManager(self.agent_id)
+        self._logger_mgr = LoggerManager()
         self._logger = self._logger_mgr.get_logger(self.agent_id)
         
     def _create_agent_info(self) -> AgentInfo:
