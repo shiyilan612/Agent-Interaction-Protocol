@@ -98,7 +98,7 @@ async def main(agent_num: int, gateway_address: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--agent-num", type=int, required=True, help="Numeric agent ID, e.g. 1 for agent1")
-    parser.add_argument("--gateway-address", default="localhost:50000")
+    parser.add_argument("--gateway-address", default="localhost:50050")
 
     args = parser.parse_args()
 
