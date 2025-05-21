@@ -1,7 +1,7 @@
 import asyncio
 import argparse
 from functools import partial
-from atlink.grpc_service.type import AgentMessage, SessionStatus, ContentItem, Mode
+from atlink.grpc_service.type import AgentMessage, SessionStatus, Mode
 from atlink.module import Agent
 
 
@@ -38,6 +38,12 @@ async def interactive_chat_loop(agent: Agent):
                 content=text
             )
             print(f"\033[31m[SEND] <{agent.agent_id}> --> <{received_id}>\033[0m: {text}")
+            await agent.submit_inquiry(
+                session_id=session_id,
+                receiver_id=received_id,
+                content="Finish Talk",
+                session_status=SessionStatus.STOP_QUEST
+            )
 
             while True:
                 response = await agent.receive_feedback(session_id, received_id)
@@ -64,9 +70,9 @@ async def process_server_message(agent):
             await  agent.submit_feedback(
                 session_id=request.session_id,
                 receiver_id=request.sender_id,
+                request_session_status=request.session_status,
                 content=text,
-                content_mode=[Mode.TEXT],
-                session_status=SessionStatus.STOP_RESPONSE
+                content_mode=[Mode.TEXT]
             )
 
 async def main(agent_num: int, gateway_address: str):

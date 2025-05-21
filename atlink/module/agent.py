@@ -301,9 +301,11 @@ class Agent:
         self._agent_clients[(session_id, receiver_id)] = client
 
         async def _wait_client_end_up(session_id, receiver_id):
-            client = self._agent_clients[(session_id, receiver_id)]
+            key = (session_id, receiver_id)
+            client = self._agent_clients[key]
             await client.wait_completion()
-            await self.close_agent_client(session_id, receiver_id)
+            await client.close()
+            self._agent_clients.pop(key)
 
         asyncio.create_task(_wait_client_end_up(session_id, receiver_id))
 
@@ -383,19 +385,23 @@ class Agent:
     async def submit_feedback(self,
                               session_id: str,
                               receiver_id: str,
+                              request_session_status: SessionStatus,
                               content: Union[str, bytes, List[Union[str, bytes]]],
                               content_mode: Optional[Union[Mode, List[Mode]]] = None,
-                              session_status: SessionStatus = None,
                               task_info: TaskInfo = None):
         """
         Send a feedback to another agent client.
         """
-        if session_status is None:
+        if request_session_status in [SessionStatus.START_QUEST, SessionStatus.HOLD_QUEST]:
             session_status = SessionStatus.HOLD_RESPONSE
+        elif request_session_status == SessionStatus.STOP_QUEST:
+            session_status = SessionStatus.STOP_RESPONSE
         else:
-            if not session_status in [SessionStatus.HOLD_RESPONSE, SessionStatus.STOP_RESPONSE]:
-                raise RuntimeError(f"Not supported session status: {session_status}")
-        
+            content = [f"Wrong request session type: {request_session_status}"]
+            content_mode = [Mode.TEXT]
+            session_status = SessionStatus.STOP_RESPONSE
+            self._logger.warning(f"Not supported request session status: {request_session_status}")
+
         # Create and send the message
         message = self.create_agent_message(
             receiver_id=receiver_id,
@@ -516,26 +522,6 @@ class Agent:
             # Handle other exceptions
             self._logger.error(f"<Agent>: Error calling tool [{tool_id}]: {str(e)}")
             raise
-            
-    async def close_agent_client(self, session_id: str, receiver_id: str) -> bool:
-        """
-        Close a specific agent client.
-        
-        Args:
-            receiver_id: ID of the receiver agent
-            
-        Returns:
-            True if session was closed, False if not found
-        """
-        key = (session_id, receiver_id)
-        if key in self._agent_clients:
-            client = self._agent_clients.pop(key)
-            await client.close()
-            return True
-        else:
-            self._logger.warning(f"<Agent>: Try to close a not existed client: {key}")
-
-        return False
     
     async def close_tool_client(self, tool_id: str) -> bool:
         """
