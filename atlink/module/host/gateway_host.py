@@ -121,7 +121,7 @@ class GatewayHost(GatewayService):
         """
         # route the message to the receiver by session
         await session.enqueue_forward_message(message)
-        self._logger.info(f"<GW>: [AgentMessage {message.receiver_id} -> {message.sender_id}]"
+        self._logger.info(f"<GW>: [AgentMessage {message.sender_id} -> {message.receiver_id}]"
                             f" Route request in session [{session.session_id}]")
 
             
