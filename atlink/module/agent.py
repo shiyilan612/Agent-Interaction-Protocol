@@ -8,6 +8,7 @@ Created on Thu Apr 24 09:44:01 2025
 import asyncio
 import uuid
 import time
+import json
 from typing import Dict, List, Optional, Callable, Any, Union
 
 from ..grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolRequest, ToolResponse
@@ -452,17 +453,16 @@ class Agent:
         Returns:
             ToolRequest object
         """
+        # Convert arguments to JSON string to support complex structures
+        arguments = json.dumps(arguments) if arguments else "{}"
 
-        #Ensure all key-value in arguments is string
-        arguments = {str(k): str(v if v is not None else "N/A") for k, v in arguments.items()}
-            
         # Create the requst
         request = ToolRequest(
             sender_id=self.agent_id,
             receiver_id=receiver_id,
             session_id=session_id or f"session_{uuid.uuid4().hex[:8]}",
             tool_name=tool_name or "unknown",
-            arguments=arguments or {}
+            arguments=arguments
         )
         
         return request

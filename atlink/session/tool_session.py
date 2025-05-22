@@ -73,7 +73,7 @@ class ToolServerSession:
         self.process_request_func = process_request_func
 
     async def process_request(self, request: ToolRequest) -> ToolResponse:
-        response = await self.process_request_func(ToolRequest.from_grpc(request))
+        response = await self.process_request_func(request)
         response.session_id = self.session_id
 
         return response

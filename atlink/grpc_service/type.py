@@ -624,7 +624,7 @@ class ToolRequest:
         receiver_id: str = "",
         session_id: str = "",
         tool_name: str = "",
-        arguments: Dict[str, str] = dict()
+        arguments: str = "{}",
     ):
         self.sender_id = sender_id
         self.receiver_id = receiver_id

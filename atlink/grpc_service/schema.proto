@@ -124,7 +124,7 @@ message ToolRequest {
   string receiver_id = 2;
   string session_id = 3;
   string tool_name = 4;
-  map<string, string> arguments = 5;
+  string arguments = 5;
 }
 
 message ToolResponse {

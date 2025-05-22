@@ -182,11 +182,15 @@ class Tool:
                           f"{request.sender_id}")
         assert (request.receiver_id == self.tool_id)
         try:
-            
+            try:
+                parsed_args = json.loads(request.arguments) if request.arguments else {}
+            except json.JSONDecodeError:
+                raise ValueError(f"Invalid JSON arguments: {request.arguments}")
+
             # Process based on tool type
             if self._func_executor is not None:
                 # Function-based tool
-                result = await self._execute_custom_func(request.arguments)
+                result = await self._execute_custom_func(parsed_args)
                 citem = ContentItem.write_text(str(result))
                 response = ToolResponse(
                     sender_id=self.tool_id,
@@ -199,7 +203,7 @@ class Tool:
 
             elif self._api_config is not None:
                 # API-based tool
-                result = await self._execute_api_call(request.arguments)
+                result = await self._execute_api_call(parsed_args)
                 if isinstance(result, str):
                     citem = ContentItem.write_text(result)
                 else:
@@ -215,7 +219,7 @@ class Tool:
 
             # elif self._mcp_config is not None:
             #     # MCP-based tool
-            #     result = await self._execute_mcp_request(request.arguments)
+            #     result = await self._execute_mcp_request(parsed_args)
             #     response.content = result
             #     response.success = True
 
@@ -244,7 +248,7 @@ class Tool:
             )
         
     
-    async def _execute_custom_func(self, arguments: Dict[str, str]) -> Any:
+    async def _execute_custom_func(self, arguments: Dict[str, Any]) -> Any:
         """Execute the function-based tool handler."""
         if not callable(self._func_executor):
             raise ValueError("Executor is not callable")
@@ -262,7 +266,7 @@ class Tool:
         return result
     
 
-    async def _execute_api_call(self, arguments: Dict[str, str]) -> Any:
+    async def _execute_api_call(self, arguments: Dict[str, Any]) -> Any:
         """Execute the API call with the provided arguments."""
         if not self._api_config:
             raise ValueError("API configuration is not set")
