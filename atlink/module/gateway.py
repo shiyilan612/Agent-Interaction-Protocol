@@ -59,15 +59,6 @@ class Gateway:
         # This is a placeholder for the actual implementation
         pass
 
-    async def get_route_log(self) -> List[str]:
-        """
-        Get the route log of the gateway.
-
-        Returns:
-            List of route logs
-        """
-        pass
-
     async def get_registered_nodes(self) -> Dict[str, Union[AgentInfo, ToolInfo]]:
         """
         Get all registered nodes (agents and tools).
