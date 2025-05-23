@@ -294,29 +294,10 @@ class Agent:
             self, receiver_id,
             stub=GatewayServiceStub,
             stream_calling="RouteAgentCalling"
-    ) -> str:
+    ):
         client = AgentClient()
         session_id = await client.start(self._gateway_address, stub, stream_calling)
         self._agent_clients[(session_id, receiver_id)] = client
-
-        # async def _wait_client_end_up(session_id, receiver_id):
-        #     key = (session_id, receiver_id)
-        #     client = self._agent_clients[key]
-        #     try:
-        #         await client.wait_completion()
-        #         while not client.response_queue.empty():
-        #             await asyncio.sleep(0.1)
-        #         await asyncio.sleep(0.1)
-        #     except Exception as e:
-        #         self._logger.error(f"<Agent>: Error in client cleanup: {e}")
-        #         raise
-        #     finally:
-        #         if key in self._agent_clients:
-        #             await client.close()
-        #             self._agent_clients.pop(key)
-        #
-        # asyncio.create_task(_wait_client_end_up(session_id, receiver_id))
-
         return session_id
 
     async def submit_inquiry(self,
@@ -330,13 +311,16 @@ class Agent:
         Send an inquiry to another agent server.
         
         Args:
-            session_id: Session ID
+            session_id: Optional session ID (automatically generated if not provided)
             receiver_id: ID of the agent to send the message to
             content: Content of the message
             content_mode: Content mode of the message
             session_status: Session status to use (START_QUEST, HOLD_QUEST, or STOP_QUEST)
                 If None, will auto-detect based on session existence
             task_info: Optional task info (automatically created if not provided)
+            
+        Returns:
+            The AgentClient instance associated with this session
         """
         if not self._gateway_address:
             raise RuntimeError("Not connected to gateway")
@@ -445,17 +429,7 @@ class Agent:
         """
         return await self._server.receive_request()
 
-    async def invoke_session_handlers(self, session_id: str, handlers: List[Callable]) -> List[Any]:
-        """
-        Invoke session handlers and wait for their results.
-        
-        Args:
-            session_id (str): ID of the session
-            handlers (List[Callable]): List of handlers to invoke
-            
-        Returns:
-            results (List[Any]): List of results from the handlers
-        """
+    async def invoke_session_handlers(self, session_id: str, handlers: List[Callable]):
         results = list()
 
         async def send_handlers(handlers_list):
@@ -478,13 +452,13 @@ class Agent:
         Create an AgentMessage object.
         
         Args:
-            receiver_id (str): ID of the tool to call.
-            session_id (str): Optional session ID (automatically generated if not provided)
-            tool_name (str): Tool name
-            arguments (Dict[str, Any]): Arguments for the tool call.
+            receiver_id: ID of the tool to call.
+            session_id: Optional session ID (automatically generated if not provided)
+            tool_name: Tool name
+            arguments: Arguments for the tool call.
             
         Returns:
-            request (ToolRequest): ToolRequest object
+            ToolRequest object
         """
         # Convert arguments to JSON string to support complex structures
         arguments = json.dumps(arguments) if arguments else "{}"
@@ -510,11 +484,11 @@ class Agent:
         
         Args:
             tool_id (str): ID of the tool to call.
-            session_id (str): Optional session ID (automatically generated if not provided)
+            session_id: Optional session ID (automatically generated if not provided)
             arguments (Dict[str, Any], optional): Arguments for the tool call.
             
         Returns:
-            response (ToolResponse): The response from the tool.
+            ToolResponse: The response from the tool.
         """
         
         if not self._gateway_address:
@@ -561,7 +535,7 @@ class Agent:
         Close a specific tool client.
         
         Args:
-            tool_id (str): ID of the tool
+            tool_id: ID of the tool
             
         Returns:
             True if client was closed, False if not found
