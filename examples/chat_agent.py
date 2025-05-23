@@ -20,14 +20,11 @@ async def read_input(prompt: str) -> str:
 async def interactive_chat_loop(agent: Agent):
     try:
         while True:
-            target_num = (await read_input("\nEnter target agent number (or 'exit'): ")).strip()
-            if target_num.lower() == "exit":
+            target_id = (await read_input("\nEnter target agent id (or 'exit'): ")).strip()
+            if target_id.lower() == "exit":
                 exit(0)
-            if not target_num.isdigit():
-                print("Invalid input. Please enter a number.")
-                continue
 
-            received_id = f"agent{target_num}"
+            received_id = target_id
             session_id = await agent.create_agent_client(received_id)
             text = await read_input("Enter message to send: ")
             text = text.strip()
@@ -45,12 +42,17 @@ async def interactive_chat_loop(agent: Agent):
                 session_status=SessionStatus.STOP_QUEST
             )
 
+            result = ""
             while True:
                 response = await agent.receive_feedback(session_id, received_id)
                 print(f"\033[32m[SUCCESS] Response received from <{response.sender_id}>\033[0m")
                 if response.session_status == SessionStatus.STOP_RESPONSE:
                     break
+                for content_item in response.content:
+                    if content_item._text:
+                        result += content_item._text
                 await asyncio.sleep(1)
+            print(f"\033[34m[RESPONSE]\033[0m:{result}")
 
     except asyncio.CancelledError:
         print("\n\033[34mInput loop cancelled. Exiting...\033[0m")
@@ -75,13 +77,10 @@ async def process_server_message(agent):
                 content_mode=[Mode.TEXT]
             )
 
-async def main(agent_num: int, gateway_address: str):
-    agent_id = f"agent{agent_num}"
-    address = f"localhost:5100{agent_num}"
-
+async def main(agent_id: str, agent_address: str, gateway_address: str):
     agent = Agent(
         agent_id=agent_id,
-        address=address,
+        address=agent_address,
         name=f"Agent {agent_id}",
         description="Chatbot agent"
     )
@@ -89,7 +88,7 @@ async def main(agent_num: int, gateway_address: str):
     await agent.start()
     await agent.register_to_gateway(gateway_address)
 
-    print(f"\n\033[36mAgent {agent_id} is ready at {address}. Start chatting!\033[0m")
+    print(f"\n\033[36mAgent {agent_id} is ready at {agent_address}. Start chatting!\033[0m")
 
     server_task = asyncio.create_task(process_server_message(agent))
     client_task = asyncio.create_task(interactive_chat_loop(agent))
@@ -103,9 +102,10 @@ async def main(agent_num: int, gateway_address: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agent-num", type=int, required=True, help="Numeric agent ID, e.g. 1 for agent1")
-    parser.add_argument("--gateway-address", default="localhost:50050")
+    parser.add_argument("--agent_id", type=str, required=True, help="Create an agent ID")
+    parser.add_argument("--agent_address", type=str, default="localhost:50051")
+    parser.add_argument("--gateway_address", default="localhost:50050")
 
     args = parser.parse_args()
 
-    asyncio.run(main(agent_num=args.agent_num, gateway_address=args.gateway_address))
+    asyncio.run(main(agent_id=args.agent_id, agent_address=args.agent_address, gateway_address=args.gateway_address))

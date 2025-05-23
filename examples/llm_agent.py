@@ -6,15 +6,15 @@ Created on Thu May 09 10:15:23 2025
 """
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import argparse
 import asyncio
 import json
+import openai
 from functools import partial
-from typing import Dict, List, Optional, Tuple, Union
-
-from atlink.grpc_service.type import AgentInfo, ToolInfo, AgentMessage, ToolRequest, ToolResponse
-from atlink.grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
-from atlink.module.agent import Agent
+from typing import Dict, List, Tuple, Union
+from atlink.grpc_service.type import AgentInfo, ToolInfo, AgentMessage
+from atlink.grpc_service.type import AgentSkill, SessionStatus, Mode
+from atlink.module import Agent
 
 
 class LLMConfig:
@@ -108,30 +108,11 @@ class LLMAgent(Agent):
         self._llm_client = None
         self._initialize_llm_client()
 
-        # Conversation context
-        self.conversation_history = {}  # session_id -> list of messages
-
-        # Set default message handler
-        # self.set_process_request_handler(self._process_llm_request)
-        # self.set_process_response_handler(self._process_received_agent_response)
-
     def _initialize_llm_client(self):
         """Initialize the LLM client based on the provider."""
         try:
-            if self.llm_provider.lower() == "openai":
-                import openai
-                self._llm_client = openai.OpenAI(api_key=self.llm_config.api_key)
-            elif self.llm_provider.lower() == "anthropic":
-                import anthropic
-                self._llm_client = anthropic.Anthropic(api_key=self.llm_config.api_key)
-            elif self.llm_provider.lower() == "vllm":
-                import openai
-                self._llm_client = openai.OpenAI(base_url=f"{self.llm_config.api_url}/v1",
-                                                 api_key=self.llm_config.api_key)
-            elif self.llm_provider.lower() == "local":
-                self._llm_client = {"base_url": self.llm_config.api_url}
-            else:
-                raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
+            self._llm_client = openai.OpenAI(base_url=self.llm_config.api_url,
+                                             api_key=self.llm_config.api_key)
         except ImportError:
             raise ImportError("Failed to initialize llm client")
 
@@ -182,12 +163,11 @@ class LLMAgent(Agent):
             agent_prompt += "You can collaborate with these agents:\n"
             for agent_id, agent_info in self._available_agents.items():
                 if agent_id != self.agent_id:
-                    agent_prompt += f"- {agent_info.name} (ID: {agent_id}): {agent_info['description']}\n"
+                    agent_prompt += f"- {agent_info.name} (ID: {agent_id}): {agent_info.description}\n"
                 if agent_info.skills:
                     agent_prompt += "  Skills:\n"
                     for skill in agent_info.skills:
                         agent_prompt += f"  - {skill.capability}\n"
-
         # Create the full prompt
         system_prompt = self.system_prompt
         system_prompt += f"""You are interacting with a user or another agent who sent you queries.
@@ -207,7 +187,6 @@ class LLMAgent(Agent):
 
         llm_prompt = {
             "system": system_prompt,
-            "history": self.conversation_history.get(session_id, []),
             "user_message": message_content
         }
 
@@ -216,62 +195,18 @@ class LLMAgent(Agent):
     async def _call_llm(self, prompt: Dict) -> str:
         """Make the actual call to the LLM."""
         try:
-            if self.llm_provider.lower() == "anthropic":
-                response = await asyncio.to_thread(
-                    self._llm_client.messages.create,
-                    model=self.llm_config.model_name,
-                    system=prompt["system"],
-                    messages=prompt["history"] + [{"role": "user", "content": prompt["user_message"]}],
-                    max_tokens=self.llm_config.max_tokens
-                )
-                return response.content[0].text
-
-            elif self.llm_provider.lower() == "openai" or self.llm_provider.lower() == "vllm":
-                response = await asyncio.to_thread(
-                    self._llm_client.chat.completions.create,
-                    model=self.llm_config.model_name,
-                    messages=[{"role": "system", "content": prompt["system"]}] +
-                             prompt["history"] +
-                             [{"role": "user", "content": prompt["user_message"]}],
-                    max_tokens=self.llm_config.max_tokens,
-                    temperature=self.llm_config.temperature
-                )
-                return response.choices[0].message.content
-
-            elif self.llm_provider.lower() == "local":
-                import aiohttp
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                            self._llm_client["base_url"],
-                            json={
-                                "model": self.llm_config.model_name,
-                                "messages": [{"role": "system", "content": prompt["system"]}] +
-                                            prompt["history"] +
-                                            [{"role": "user", "content": prompt["user_message"]}],
-                                "stream": False
-                            }
-                    ) as response:
-                        result = await response.json()
-                        return result["message"]["content"]
-
-            else:
-                raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
-
+            response = await asyncio.to_thread(
+                self._llm_client.chat.completions.create,
+                model=self.llm_config.model_name,
+                messages=[{"role": "system", "content": prompt["system"]}] +
+                         [{"role": "user", "content": prompt["user_message"]}],
+                max_tokens=self.llm_config.max_tokens,
+                temperature=self.llm_config.temperature
+            )
+            return response.choices[0].message.content
         except Exception as e:
             print(f"Error calling LLM: {str(e)}")
             return f"Error generating response: {str(e)}"
-
-    # async def _process_received_agent_response(self, message: AgentMessage) -> None:
-    #     session_id = message.session_id
-    #     content = ""
-    #     for content_item in message.content:
-    #         if content_item._text:
-    #             content += content_item._text
-    #     self.conversation_history[session_id].append({"role": "assistant",
-    #                                                   "content": f"[{message.sender_id}]: {content}",
-    #                                                   })
-    #     if message.session_status == SessionStatus.STOP_RESPONSE:
-    #         print("Conversation complete.")
 
     async def process_server_message(self):
         while True:
@@ -287,17 +222,13 @@ class LLMAgent(Agent):
                     receiver_id=request.sender_id,
                     content=text,
                     content_mode=[Mode.TEXT],
-                    session_status=SessionStatus.STOP_RESPONSE
+                    request_session_status=request.session_status
                 )
 
     async def _process_llm_request(self, message: AgentMessage) -> str: #AgentMessage:
         """Process incoming messages using the LLM."""
         session_id = message.session_id
         sender_id = message.sender_id
-
-        # Update conversation history
-        if session_id not in self.conversation_history:
-            self.conversation_history[session_id] = []
 
         # Ensure we have agent/tool information
         if not self._available_agents and self._available_tools:
@@ -308,13 +239,6 @@ class LLMAgent(Agent):
 
         # Call the LLM
         llm_response = await self._call_llm(llm_prompt)
-
-        # Update history with the new messages
-        self.conversation_history[session_id].append({"role": "user", "content": llm_prompt["user_message"]})
-        self.conversation_history[session_id].append({"role": "assistant",
-                                                      "content": f"[{self.agent_id}]: {llm_response}"
-                                                      })
-
         # Parse the response for potential actions
         action, content = self._parse_llm_response(llm_response)
 
@@ -322,46 +246,14 @@ class LLMAgent(Agent):
             # Handle tool calling
             tool_response = await self._handle_tool_call(content, session_id)
             return tool_response
-            # Create response with tool results
-            # response = self.create_agent_message(
-            #     sender_id=self.agent_id,
-            #     receiver_id=message.sender_id,
-            #     content=tool_response,
-            #     session_id=message.session_id,
-            #     session_status=SessionStatus.HOLD_QUEST,
-            #     task_info=message.task_info,
-            #     reply_to_message_id=message.message_id
-            # )
-
         elif action == "ask_agent":
             # Handle asking another agent
             agent_response = await self._handle_agent_call(content)
             return agent_response
-            # Create response with forwarded results
-            # response = self.create_agent_message(
-            #     sender_id=self.agent_id,
-            #     receiver_id=message.sender_id,
-            #     content=agent_response,
-            #     session_id=message.session_id,
-            #     session_status=SessionStatus.HOLD_QUEST,
-            #     task_info=message.task_info,
-            #     reply_to_message_id=message.message_id
-            # )
-
         else:
             # Direct response
             pass
-            # response = self.create_agent_message(
-            #     sender_id=self.agent_id,
-            #     receiver_id=message.sender_id,
-            #     content=content,
-            #     session_id=message.session_id,
-            #     session_status=SessionStatus.HOLD_QUEST,
-            #     task_info=message.task_info,
-            #     reply_to_message_id=message.message_id
-            # )
         return content
-        # return response
 
     def _parse_llm_response(self, response: str) -> Tuple[str, Union[str, Dict]]:
         """
@@ -431,13 +323,6 @@ class LLMAgent(Agent):
                 for content_item in response.content:
                     if content_item._text:
                         result += content_item._text
-
-                self.conversation_history[session_id].append({
-                    "role": "tool",
-                    "tool_call_id": tool_id,
-                    "content": result
-                })
-
                 return result
 
             except Exception as e:
@@ -467,25 +352,21 @@ class LLMAgent(Agent):
                     receiver_id=agent_id,
                     content=message
                 )
-
-                self.conversation_history[session_id].append({
-                    "role": "assistant",
-                    "content": f"[{self.agent_id}]: {message}"
-                })
+                await self.submit_inquiry(
+                    session_id=session_id,
+                    receiver_id=agent_id,
+                    content="Finish Talk",
+                    session_status = SessionStatus.STOP_QUEST
+                )
 
                 result = ""
                 while True:
                     response = await self.receive_feedback(session_id=session_id, receiver_id=agent_id)
+                    if response.session_status == SessionStatus.STOP_RESPONSE:
+                        break
                     for content_item in response.content:
                         if content_item._text:
                             result += content_item._text
-                    if response.session_status == SessionStatus.STOP_RESPONSE:
-                        break
-
-                self.conversation_history[session_id].append({"role": "assistant",
-                                                              "content": f"[{agent_id}]: {result}"
-                                                              })
-
                 return result
 
             except Exception as e:
@@ -493,72 +374,39 @@ class LLMAgent(Agent):
         else:
             return f"Illegal agent_id"
 
-
-async def main():
+async def main(agent_id: str, agent_address: str, gateway_address: str):
     # Create and start Assistant Agent
     llmconfig = LLMConfig(
-        api_url = "http://127.0.0.1:8106",
-        api_key = "EMPTY",
+        api_url = "http://172.18.36.90:8106/v1",
+        api_key = "Empty",
         model_name = "Qwen7B"
     )
     assistant = LLMAgent(
         llm_provider="vllm",
         llm_config=llmconfig,
-        address="localhost:50052",
-        agent_id="agent2",
+        address=agent_address,
+        agent_id=agent_id,
         name="Assistant Agent",
-        description="An agent that provides assistance"
+        description="A LLM_based agent that provides assistance"
     )
     await assistant.start()
-    await assistant.register_to_gateway("localhost:50050")
+    await assistant.register_to_gateway(gateway_address)
     server_task = asyncio.create_task(assistant.process_server_message())
+    print("Assistant llm_agent registered")
 
-    await asyncio.sleep(1)
-    print("Assistant agent2 registered")
-
-    # Create and start User Agent
-    user = Agent(
-        address="localhost:50053",
-        agent_id="agent1",
-        name="User Agent",
-        description="An agent representing the user"
-    )
-    await user.start()
-    await user.register_to_gateway("localhost:50050")
-    await asyncio.sleep(1)
-    print("User agent1 registered")
-
-    # User sends a message to the Assistant
-    session_id = await user.create_agent_client(receiver_id="agent2")
-    await user.submit_inquiry(
-        session_id=session_id,
-        receiver_id="agent2",
-        content="What is the result of 10 + 20?"
-    )
-
-    while True:
-        response = await user.receive_feedback(session_id, "agent2")
-        print(f"Response received: {response.content[0]._text}")
-        if response.session_status == SessionStatus.STOP_RESPONSE:
-            break
-        await asyncio.sleep(1)
-
-    # # User calls the Calculator tool directly
-    # response = await user.call_tool(
-    #     tool_id="tool1",
-    #     tool_name="Sum",
-    #     arguments={"a": 10, "b": 20},
-    # )
-    # print(f"Tool response: {response.content[0]._text}")
-
-    # Clean up
-    await user.stop()
-    await assistant.stop()
-    print("All agents stopped")
-
+    await assistant.update_peers()
+    await assistant._fetch_available_nodes()
+    await asyncio.sleep(9999999)
 
 if __name__ == "__main__":
-    # run main process
+    parser = argparse.ArgumentParser()
+
+
+    parser.add_argument("--agent_id", type=str, required=True, help="Create an agent ID")
+    parser.add_argument("--agent_address", type=str, default="localhost:50052")
+    parser.add_argument("--gateway_address", default="localhost:50050")
+    args = parser.parse_args()
+
     asyncio.get_event_loop().set_debug(True)
-    asyncio.run(main())
+    asyncio.run(main(agent_id=args.agent_id, agent_address=args.agent_address, gateway_address=args.gateway_address))
 

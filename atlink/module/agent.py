@@ -103,13 +103,11 @@ class Agent:
     async def stop(self):
         """Stop the agent server and close all client connections."""
         # Close all active client connections
-        for client_id, client in list(self._agent_clients.items()):
-            await client.close()
-            del self._agent_clients[client_id]
+        for (session_id, receiver_id) in list(self._agent_clients.keys()):
+            await self.close_agent_client(session_id, receiver_id)
             
-        for tool_id, tool_client in list(self._tool_clients.items()):
-            await tool_client.close()
-            del self._tool_clients[tool_id]
+        for tool_id in list(self._tool_clients.keys()):
+            await self.close_tool_client(tool_id)
         
         # Stop the server
         if self._server:
@@ -301,14 +299,23 @@ class Agent:
         session_id = await client.start(self._gateway_address, stub, stream_calling)
         self._agent_clients[(session_id, receiver_id)] = client
 
-        async def _wait_client_end_up(session_id, receiver_id):
-            key = (session_id, receiver_id)
-            client = self._agent_clients[key]
-            await client.wait_completion()
-            await client.close()
-            self._agent_clients.pop(key)
-
-        asyncio.create_task(_wait_client_end_up(session_id, receiver_id))
+        # async def _wait_client_end_up(session_id, receiver_id):
+        #     key = (session_id, receiver_id)
+        #     client = self._agent_clients[key]
+        #     try:
+        #         await client.wait_completion()
+        #         while not client.response_queue.empty():
+        #             await asyncio.sleep(0.1)
+        #         await asyncio.sleep(0.1)
+        #     except Exception as e:
+        #         self._logger.error(f"<Agent>: Error in client cleanup: {e}")
+        #         raise
+        #     finally:
+        #         if key in self._agent_clients:
+        #             await client.close()
+        #             self._agent_clients.pop(key)
+        #
+        # asyncio.create_task(_wait_client_end_up(session_id, receiver_id))
 
         return session_id
 
@@ -381,7 +388,26 @@ class Agent:
         if not client:
             raise RuntimeError(f"Not existed client (session id: {session_id} | receiver_id: {receiver_id})")
 
-        return await client.response_queue.get()
+        response = await client.response_queue.get()
+        if response.session_status == SessionStatus.STOP_RESPONSE:
+            await self.close_agent_client(session_id, receiver_id)
+
+        return response
+
+    async def close_agent_client(self, session_id: str, receiver_id: str) -> bool:
+        """
+        Close a specific agent client.
+        """
+        key = (session_id, receiver_id)
+        client = self._agent_clients.pop(key, None)
+        if client:
+            try:
+                await client.close()
+                self._logger.debug(f"Cleaned up agent client for session {session_id} -> {receiver_id}")
+            except Exception as e:
+                self._logger.error(f"Error cleaning up agent client: {e}")
+            return True
+        return False
 
     async def submit_feedback(self,
                               session_id: str,
@@ -533,8 +559,12 @@ class Agent:
         Returns:
             True if client was closed, False if not found
         """
-        if tool_id in self._tool_clients:
-            client = self._tool_clients.pop(tool_id)
-            await client.close()
+        client = self._tool_clients.pop(tool_id, None)
+        if client:
+            try:
+                await client.close()
+                self._logger.debug(f"Cleaned up tool client for {tool_id}")
+            except Exception as e:
+                self._logger.error(f"Error cleaning up tool client: {e}")
             return True
         return False
