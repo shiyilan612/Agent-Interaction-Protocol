@@ -120,7 +120,7 @@ class LoggerManager:
             ])
             log_dir: Directory where log files will be stored
         """
-        default_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        default_formatter = logging.Formatter('%(asctime)s [%(name)s] [%(levelname)s] - %(message)s')
         
         if handlers is None:
             handlers = self.default_handlers
