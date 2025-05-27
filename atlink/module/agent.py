@@ -384,9 +384,9 @@ class Agent:
         if client:
             try:
                 await client.close()
-                self._logger.debug(f"Cleaned up agent client for session {session_id} -> {receiver_id}")
+                self._logger.debug(f"<Agent>: Cleaned up agent client for session {session_id} -> {receiver_id}")
             except Exception as e:
-                self._logger.error(f"Error cleaning up agent client: {e}")
+                self._logger.error(f"<Agent>: Error cleaning up agent client: {e}")
             return True
         return False
 
@@ -408,7 +408,7 @@ class Agent:
             content = [f"Wrong request session type: {request_session_status}"]
             content_mode = [Mode.TEXT]
             session_status = SessionStatus.STOP_RESPONSE
-            self._logger.warning(f"Not supported request session status: {request_session_status}")
+            self._logger.warning(f"<Agent>: Not supported request session status: {request_session_status}")
 
         # Create and send the message
         message = self.create_agent_message(
@@ -544,8 +544,8 @@ class Agent:
         if client:
             try:
                 await client.close()
-                self._logger.debug(f"Cleaned up tool client for {tool_id}")
+                self._logger.debug(f"<Agent>: Cleaned up tool client for {tool_id}")
             except Exception as e:
-                self._logger.error(f"Error cleaning up tool client: {e}")
+                self._logger.error(f"<Agent>: Error cleaning up tool client: {e}")
             return True
         return False
