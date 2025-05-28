@@ -116,6 +116,9 @@ class Agent:
             
         # Clear task info
         self._tasks.clear()
+        
+        # Stop loggers
+        self._logger_mgr.stop()
     
     async def register_to_gateway(self, gateway_address: str):
         """Register to the gateway service."""

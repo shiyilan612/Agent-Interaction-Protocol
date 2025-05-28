@@ -48,6 +48,9 @@ class Gateway:
         """Stop the gateway server."""
         if self._host:
             await self._host.stop()
+            
+        # Stop loggers
+        self._logger_mgr.stop()
 
     async def connect_to_gateway(self, gateway_address: str):
         """Connect to another gateway.
