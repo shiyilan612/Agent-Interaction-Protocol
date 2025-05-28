@@ -148,7 +148,7 @@ class ToolService(ToolServiceServicer):
             # Register Tool with gateway
             response = await stub.RegisterTool(self.tool_info)
             
-            self._logger.info(f"<Tool>: Register {'successed' if response else 'failed'} "
+            self._logger.info(f"<Tool>: Register {'successfully' if response else 'failed'} "
                               f"to Gateway ({gateway_address})")
 
             self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
@@ -175,7 +175,7 @@ class ToolService(ToolServiceServicer):
             response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.tool_id))          
             await self._connection_pool.close_stub(self._gateway_address)
             
-            self._logger.info(f"<Tool>: Deregister {'successed' if response.success else 'failed'} "
+            self._logger.info(f"<Tool>: Deregister {'successfully' if response.success else 'failed'} "
                               f"from Gateway ({self._gateway_address})")
 
             # Cancel heartbeat task
