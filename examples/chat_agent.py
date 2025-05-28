@@ -28,7 +28,7 @@ async def interactive_chat_loop(agent: Agent):
         while True:
             target_id = (await read_input("\nEnter target agent id (or 'exit'): ")).strip()
             if target_id.lower() == "exit":
-                exit(0)
+                break
 
             received_id = target_id
             session_id = await agent.create_agent_client(received_id)
@@ -61,7 +61,7 @@ async def interactive_chat_loop(agent: Agent):
             print(f"\033[34m[RESPONSE]\033[0m:{result}")
 
     except asyncio.CancelledError:
-        print("\n\033[34mInput loop cancelled. Exiting...\033[0m")
+        pass
 
 
 async def process_server_message(agent):
@@ -82,7 +82,7 @@ async def process_server_message(agent):
                     content_mode=[Mode.TEXT]
                 )
     except asyncio.CancelledError:
-        print("\n\033[34mServer message processing cancelled. Exiting...\033[0m")
+        pass
 
 async def main(agent_id: str, agent_address: str, gateway_address: str):
     agent = Agent(
@@ -101,7 +101,14 @@ async def main(agent_id: str, agent_address: str, gateway_address: str):
     client_task = asyncio.create_task(interactive_chat_loop(agent))
 
     try:
-        await asyncio.gather(server_task, client_task)
+        done, pending = await asyncio.wait(
+            [server_task, client_task],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in pending:
+            task.cancel()
+            
     except asyncio.CancelledError:
         print("\n\033[34mTask cancelled. Stopping agent...\033[0m")
         await agent.stop()
