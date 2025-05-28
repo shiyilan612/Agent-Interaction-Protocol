@@ -177,7 +177,7 @@ class AgentService(AgentServiceServicer):
 
             await self._update_peers(response.peers) # update peers
 
-            self._logger.info(f"<Agent>: Register {'successed' if response else 'failed'} "
+            self._logger.info(f"<Agent>: Register {'successfully' if response else 'failed'} "
                               f"to Gateway ({gateway_address})")
 
             self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
@@ -204,7 +204,7 @@ class AgentService(AgentServiceServicer):
             response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.agent_id))         
             await self._connection_pool.close_stub(self._gateway_address)
             
-            self._logger.info(f"<Agent>: Deregister {'successed' if response.success else 'failed'} "
+            self._logger.info(f"<Agent>: Deregister {'successfully' if response.success else 'failed'} "
                               f"from Gateway ({self._gateway_address})")
 
             # Cancel heartbeat task

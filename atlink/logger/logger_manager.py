@@ -11,6 +11,7 @@ import os
 import queue
 from pathlib import Path
 from typing import List, Dict
+from colorlog import ColoredFormatter
 
 class LoggerManager:
     """
@@ -46,8 +47,7 @@ class LoggerManager:
             self.default_handlers = [
                 # console handler
                 {
-                    'type': 'stream',
-                    'level': 'INFO',
+                    'type': 'stream'
                 },
                 # timed rotating file handler
                 {
@@ -56,7 +56,31 @@ class LoggerManager:
                     'interval': 1,
                     'backupCount': 7
                 }
-            ]            
+            ]
+            
+            self.default_formatter = logging.Formatter(
+                fmt='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            
+            self.default_colored_formatter = ColoredFormatter(
+                fmt='%(asctime)s | %(log_color)s%(levelname)-8s%(reset)s | %(name)s | %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S',
+                log_colors={
+                    'DEBUG': 'cyan',
+                    'INFO': 'green',
+                    'WARNING': 'yellow',
+                    'ERROR': 'red,bold',
+                    'CRITICAL': 'white,bg_red,bold'
+                },
+                secondary_log_colors={
+                    "message": {"WARNING": "yellow", 
+                                "ERROR": "red,bold", 
+                                "CRITICAL": "white,bg_red,bold"
+                    }
+                }
+            )
+            
     
     def get_logger(self, 
                    name: str, 
@@ -99,6 +123,8 @@ class LoggerManager:
         logger.setLevel(level)
         
         self.set_handlers(logger, name, handlers, logger_log_dir)
+        
+        # logger.info(f"<Logger>: Logger '{name}' started with level {level}")
                 
         return logger
     
@@ -123,7 +149,7 @@ class LoggerManager:
             log_dir: Directory where log files will be stored
         """
         log_queue = queue.Queue()
-        default_formatter = logging.Formatter('%(asctime)s [%(name)s] [%(levelname)s] - %(message)s')
+
         handler_objects = []
         
         if handlers is None:
@@ -158,22 +184,37 @@ class LoggerManager:
             handler.setLevel(handler_level)
             
             # Set formatter
-            if 'formatter' in handler_config:
-                formatter_args = handler_config['formatter']
-                formatter = logging.Formatter(**formatter_args)
-            else:
-                formatter = default_formatter
-                
-            handler.setFormatter(formatter)
+            self.set_formatter(handler, handler_config)
+          
             handler_objects.append(handler)
+            logger.addHandler(handler)
             
-        listener = logging.handlers.QueueListener(log_queue, *handler_objects)
-        if name not in self._listeners:
-            self._listeners[name] = listener
-        listener.start()
+        # listener = logging.handlers.QueueListener(log_queue, *handler_objects)
+        # if name not in self._listeners:
+        #     self._listeners[name] = listener
+        # listener.start()
             
-        queue_handler = logging.handlers.QueueHandler(log_queue)
-        logger.addHandler(queue_handler)
+        # queue_handler = logging.handlers.QueueHandler(log_queue)
+        # logger.addHandler(queue_handler)
+        
+    def set_formatter(self, handler: logging.Handler, handler_config: Dict[str, str]):
+        """
+        Set formatter for the specified handler.
+        
+        Args:
+            handler: Handler instance to set formatter for
+            handler_config: Configuration for the formatter
+        """
+        if 'formatter' in handler_config:
+            formatter_args = handler_config['formatter']
+            formatter = logging.Formatter(**formatter_args)
+            handler.setFormatter(formatter)
+        else:
+            handler_type = handler_config.get('type')
+            if handler_type == 'stream':
+                handler.setFormatter(self.default_colored_formatter)
+            else:
+                handler.setFormatter(self.default_formatter)
         
     def stop_listener(self, name: str):
         """
