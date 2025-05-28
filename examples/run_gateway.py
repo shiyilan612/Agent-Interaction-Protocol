@@ -6,8 +6,12 @@ async def main():
     gateway = Gateway(address="localhost:50050", gateway_id="test_gw")
     await gateway.start()
     print("Gateway started. Press Ctrl+C to exit.")
-    while True:
-        await asyncio.sleep(9999999)
+    try:
+        while True:
+            await asyncio.sleep(9999999)
+    except asyncio.CancelledError:
+        print("Stopping gateway...")
+        await gateway.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())

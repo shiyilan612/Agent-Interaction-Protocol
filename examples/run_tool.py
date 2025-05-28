@@ -42,7 +42,13 @@ async def main(gateway_address):
     await sum_tool.register_to_gateway(gateway_address)
     print("Func Tool registered")
 
-    await asyncio.sleep(9999999)
+    try:
+        while True:
+            await asyncio.sleep(9999999)
+    except asyncio.CancelledError:
+        print("Stopping tools...")
+        await siRNA_tool.stop()
+        await sum_tool.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -1,5 +1,6 @@
 import asyncio
 import argparse
+import sys
 from functools import partial
 from atlink.grpc_service.type import AgentMessage, SessionStatus, Mode
 from atlink.module import Agent
@@ -14,7 +15,12 @@ async def delayed_process_request_func(message: AgentMessage, delay: float) -> A
 
 
 async def read_input(prompt: str) -> str:
-    return await asyncio.to_thread(input, prompt)
+    print(prompt, end='', flush=True)
+    reader = asyncio.StreamReader()
+    protocol = asyncio.StreamReaderProtocol(reader)
+    loop = asyncio.get_event_loop()
+    await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+    return (await reader.readline()).decode().strip()
 
 
 async def interactive_chat_loop(agent: Agent):
@@ -56,26 +62,27 @@ async def interactive_chat_loop(agent: Agent):
 
     except asyncio.CancelledError:
         print("\n\033[34mInput loop cancelled. Exiting...\033[0m")
-    except KeyboardInterrupt:
-        print("\n\033[34mInterrupted by user. Exiting...\033[0m")
 
 
 async def process_server_message(agent):
-    while True:
-        request = await agent.receive_inquiry()
-        session_id = request.session_id
-        handlers = [
-            partial(delayed_process_request_func, message=request, delay=2)
-        ]
-        results = await agent.invoke_session_handlers(session_id, handlers)
-        for text in results:
-            await  agent.submit_feedback(
-                session_id=request.session_id,
-                receiver_id=request.sender_id,
-                request_session_status=request.session_status,
-                content=text,
-                content_mode=[Mode.TEXT]
-            )
+    try:
+        while True:
+            request = await agent.receive_inquiry()
+            session_id = request.session_id
+            handlers = [
+                partial(delayed_process_request_func, message=request, delay=2)
+            ]
+            results = await agent.invoke_session_handlers(session_id, handlers)
+            for text in results:
+                await  agent.submit_feedback(
+                    session_id=request.session_id,
+                    receiver_id=request.sender_id,
+                    request_session_status=request.session_status,
+                    content=text,
+                    content_mode=[Mode.TEXT]
+                )
+    except asyncio.CancelledError:
+        print("\n\033[34mServer message processing cancelled. Exiting...\033[0m")
 
 async def main(agent_id: str, agent_address: str, gateway_address: str):
     agent = Agent(
@@ -88,13 +95,16 @@ async def main(agent_id: str, agent_address: str, gateway_address: str):
     await agent.start()
     await agent.register_to_gateway(gateway_address)
 
-    print(f"\n\033[36mAgent {agent_id} is ready at {agent_address}. Start chatting!\033[0m")
+    print(f"\n\033[36mAgent {agent_id} is ready at {agent_address}. Start chatting!\033[0m", flush=True)
 
     server_task = asyncio.create_task(process_server_message(agent))
     client_task = asyncio.create_task(interactive_chat_loop(agent))
 
     try:
         await asyncio.gather(server_task, client_task)
+    except asyncio.CancelledError:
+        print("\n\033[34mTask cancelled. Stopping agent...\033[0m")
+        await agent.stop()
     finally:
         await agent.stop()
         print(f"\033[35mAgent {agent_id} stopped.\033[0m")
