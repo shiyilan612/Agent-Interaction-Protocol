@@ -8,6 +8,7 @@ Created on Thu May 15 09:36:11 2025
 import logging
 import logging.handlers
 import os
+import queue
 from pathlib import Path
 from typing import List, Dict
 
@@ -36,6 +37,7 @@ class LoggerManager:
         """
         if not hasattr(self, '_loggers'):
             self._loggers = {}
+            self._listeners = {}
             
             self.log_dir = Path().cwd() / 'logs'
             if not self.log_dir.exists():
@@ -93,7 +95,7 @@ class LoggerManager:
         
         # Set the logger level
         # If level is not provided, use the environment variable or default to INFO
-        level = level if level else os.getenv('ATLINLK_LOG_LEVEL', 'INFO').upper()
+        level = level if level else os.getenv('ATLINK_LOG_LEVEL', 'INFO').upper()
         logger.setLevel(level)
         
         self.set_handlers(logger, name, handlers, logger_log_dir)
@@ -120,7 +122,9 @@ class LoggerManager:
             ])
             log_dir: Directory where log files will be stored
         """
+        log_queue = queue.Queue()
         default_formatter = logging.Formatter('%(asctime)s [%(name)s] [%(levelname)s] - %(message)s')
+        handler_objects = []
         
         if handlers is None:
             handlers = self.default_handlers
@@ -161,5 +165,36 @@ class LoggerManager:
                 formatter = default_formatter
                 
             handler.setFormatter(formatter)
-            logger.addHandler(handler)
+            handler_objects.append(handler)
+            
+        listener = logging.handlers.QueueListener(log_queue, *handler_objects)
+        if name not in self._listeners:
+            self._listeners[name] = listener
+        listener.start()
+            
+        queue_handler = logging.handlers.QueueHandler(log_queue)
+        logger.addHandler(queue_handler)
+        
+    def stop_listener(self, name: str):
+        """
+        Stop the listener for the specified logger.
+        
+        Args:
+            name: Name of the logger
+        """
+        if name in self._listeners:
+            listener = self._listeners[name]
+            listener.stop()
+            del self._listeners[name]
+            if name in self._loggers:
+                del self._loggers[name]
+                
+    def stop(self):
+        """
+        Stop all listeners and clear the loggers.
+        """
+        for name in list(self._listeners.keys()):
+            self.stop_listener(name)
+        self._loggers.clear()
+        self._listeners.clear()
     
