@@ -178,8 +178,8 @@ class Tool:
         Returns:
             ToolResponse containing the result or error
         """
-        self._logger.info(f"<Tool>: Tool {self.tool_id} received a request from "
-                          f"{request.sender_id}")
+        self._logger.info(f"<Tool>: Tool [{self.tool_id}] received request from "
+                          f"[{request.sender_id}]")
         assert (request.receiver_id == self.tool_id)
         try:
             try:

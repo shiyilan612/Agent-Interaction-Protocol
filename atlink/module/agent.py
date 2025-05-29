@@ -387,9 +387,10 @@ class Agent:
         if client:
             try:
                 await client.close()
-                self._logger.debug(f"<Agent>: Cleaned up agent client for session {session_id} -> {receiver_id}")
+                self._logger.debug(f"<Agent>: Cleaned up client for session", 
+                                   f" [{session_id}] targeting receiver [{receiver_id}]")
             except Exception as e:
-                self._logger.error(f"<Agent>: Error cleaning up agent client: {e}")
+                self._logger.error(f"<Agent>: Failed to clean up agent client - Exception: {e}")
             return True
         return False
 
@@ -411,7 +412,8 @@ class Agent:
             content = [f"Wrong request session type: {request_session_status}"]
             content_mode = [Mode.TEXT]
             session_status = SessionStatus.STOP_RESPONSE
-            self._logger.warning(f"<Agent>: Not supported request session status: {request_session_status}")
+            self._logger.warning(f"<Agent>: Unsupported session status [{request_session_status}]", 
+                                 f" encountered in request")
 
         # Create and send the message
         message = self.create_agent_message(
@@ -530,7 +532,7 @@ class Agent:
             raise
         except Exception as e:
             # Handle other exceptions
-            self._logger.error(f"<Agent>: Error calling tool [{tool_id}]: {str(e)}")
+            self._logger.error(f"<Agent>: Failed to call tool [{tool_id}] - Exception: {str(e)}")
             raise
     
     async def close_tool_client(self, tool_id: str) -> bool:
@@ -547,8 +549,8 @@ class Agent:
         if client:
             try:
                 await client.close()
-                self._logger.debug(f"<Agent>: Cleaned up tool client for {tool_id}")
+                self._logger.debug(f"Cleaned up tool client for [{tool_id}]")
             except Exception as e:
-                self._logger.error(f"<Agent>: Error cleaning up tool client: {e}")
+                self._logger.error(f"<Agent>: Failed to clean up tool client - Exception: {e}")
             return True
         return False

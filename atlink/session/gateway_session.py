@@ -72,7 +72,7 @@ class GatewaySession:
                 await self.send(message)
                 self.forward_queue.task_done()
         except grpc.RpcError as e:
-            self._logger.debug(f"<GW>: Session {self.session_id} forward stream call RPC error"
+            self._logger.debug(f"<Gateway>: Session [{self.session_id}] forward stream call RPC error"
                                f": {e.code()}, details: {e.details()}")
             await self.response_queue.put(e)
             raise
@@ -92,8 +92,8 @@ class GatewaySession:
             async for response in self.stream_stream_call:
                 await self.response_queue.put(AgentMessage.from_grpc(response))
         except grpc.RpcError as e:
-            self._logger.debug(f"<GW>: Session [{self.session_id}] get response error: {e.code()}, "
-                               f"details: {e.details()}")
+            self._logger.debug(f"<Gateway>: Session [{self.session_id}] response retrieval RPC "
+                               f"error: {e.code()}, details: {e.details()}")
             await self.response_queue.put(e)
             raise
         except asyncio.CancelledError:
@@ -145,7 +145,7 @@ class GatewaySessionMagager:
                                          stream_stream_call=stream_stream_call)
             await new_session.activate()
             self.route_sessions[session_id] = new_session
-            self._logger.info(f"<GW>: Session [{session_id}] created for [Agent {sender_id}"
+            self._logger.info(f"<Gateway>: Session [{session_id}] created for [Agent {sender_id}"
                               f" -> {receiver_id}]")
 
             return new_session

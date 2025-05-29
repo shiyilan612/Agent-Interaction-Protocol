@@ -174,19 +174,19 @@ class AgentServerSessionManager:
         if session := self.active_sessions.get(session_id):
             await session.put_response(message)
         else:
-            self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")
+            self._logger.warning(f"<Agent>: Session [{session_id}] does not exist in active server sessions")
 
     async def put_session_handler(self, session_id: str, handler: Callable):
         if session := self.active_sessions.get(session_id):
             await session.put_handler(handler)
         else:
-            self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")
+            self._logger.warning(f"<Agent>: Session [{session_id}] does not exist in active server sessions")
 
     async def get_session_output(self, session_id: str):
         if session := self.active_sessions.get(session_id):
             return await session.get_output()
         else:
-            self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")
+            self._logger.warning(f"<Agent>: Session [{session_id}] does not exist in active server sessions")
 
     async def create_session(self, session_id: str, client_id: str) -> Optional[AgentServerSession]:
         """
@@ -199,15 +199,15 @@ class AgentServerSessionManager:
         """
         async with self._lock:
             if session_id in self.active_sessions:
-                self._logger.warning(f"Attempt to create an existed server session ({session_id}).")
+                self._logger.warning(f"<Agent>: Attempt to create existing server session [{session_id}]")
                 return None
 
             new_session = AgentServerSession(session_id)
             await new_session.activate()
             self.active_sessions[session_id] = new_session
 
-            self._logger.debug(f"<Agent>: Session [{session_id}] created for processing requests of"
-                               f" Agent [{client_id}]")
+            self._logger.debug(f"<Agent>: Session [{session_id}] created for processing requests "
+                               f"from Agent [{client_id}]")
             return new_session
 
     async def close_session(self, session_id: str):
@@ -220,4 +220,4 @@ class AgentServerSessionManager:
             if session := self.active_sessions.pop(session_id, None):
                 await session.close()
             else:
-                self._logger.warning(f"Session [{session_id}] is not existed in active server sessions.")
+                self._logger.warning(f"<Agent>: Session [{session_id}] does not exist in active server sessions")
