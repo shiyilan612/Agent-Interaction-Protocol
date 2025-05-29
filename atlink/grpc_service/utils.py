@@ -28,7 +28,7 @@ class ConnectionPool:
             self._channels[address] = channel
             self._stubs[address] = stub_ptr(channel)
         except grpc.RpcError as e:
-            self._logger.error(f"<Connection Pool>: Connection failed to {address}: {e.code()}")
+            self._logger.error(f"<Connection Pool>: Failed to establish connection to [{address}]: {e.code()}")
 
     async def close_stub(self, address: str):
         """ close a connection for the input address"""
@@ -40,14 +40,14 @@ class ConnectionPool:
                 del self._stubs[address]
         except grpc.RpcError as e:
             self._logger.error(f"<Connection Pool>: Failed to close connection to "
-                               f"{address}: {e.code()}")
+                               f"[{address}]: {e.code()}")
 
     def get_stub(self, address: str) -> Optional[Union[GatewayServiceStub, AgentServiceStub, ToolServiceStub]]:
         """get a stub for a specified address"""
         if address in self._stubs:
             return self._stubs[address]
         else:
-            self._logger.warning(f"<Connection Pool>: None Connection to {address}")
+            self._logger.warning(f"<Connection Pool>: No connection available to [{address}]")
             return None
 
     async def close_all(self):

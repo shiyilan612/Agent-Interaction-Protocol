@@ -87,7 +87,7 @@ class AgentService(AgentServiceServicer):
         try:
             await self._server.wait_for_termination()
         except Exception as e:
-            self._logger.error(f"<Agent>: Error during gRPC server termination: {e}")
+            self._logger.error(f"<Agent>: Failed to terminate gRPC server - Exception: {e}")
         finally:
             await self._server.stop(1)
 
@@ -146,7 +146,7 @@ class AgentService(AgentServiceServicer):
         add_AgentServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        self._logger.info(f"<Agent>: Agent [{self.agent_id}] Server is started on [{self.address}]")
+        self._logger.info(f"<Agent>: Agent [{self.agent_id}] server started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         return self
@@ -177,21 +177,21 @@ class AgentService(AgentServiceServicer):
 
             await self._update_peers(response.peers) # update peers
 
-            self._logger.info(f"<Agent>: Register {'successfully' if response else 'failed'} "
-                              f"to Gateway ({gateway_address})")
+            self._logger.info(f"<Agent>:  {'Registered' if response else 'Failed to register'}"
+                              f" to Gateway at [{gateway_address}]")
 
             self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
 
         except grpc.aio.AioRpcError as e:
-            self._logger.error(f"<Agent>: Register failed to Gateway ({gateway_address}). "
+            self._logger.error(f"<Agent>: Failed to register to Gateway at [{gateway_address}] - "
                                f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # Handle BrokenPipeError
                 pass
             raise
         except Exception as e:
-            self._logger.error(f"<Agent>: Register failed to Gateway ({gateway_address}). "
-                               f"Other exception: {str(e)}")
+            self._logger.error(f"<Agent>: Failed to register to Gateway at [{gateway_address}] - "
+                               f"Exception: {str(e)}")
         
     async def disconnect_from_gateway(self):
         """
@@ -204,8 +204,8 @@ class AgentService(AgentServiceServicer):
             response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.agent_id))         
             await self._connection_pool.close_stub(self._gateway_address)
             
-            self._logger.info(f"<Agent>: Deregister {'successfully' if response.success else 'failed'} "
-                              f"from Gateway ({self._gateway_address})")
+            self._logger.info(f"<Agent>: {'Deregistered' if response else 'Failed to deregister'}"
+                              f" from Gateway at [{self._gateway_address}]")
 
             # Cancel heartbeat task
             if self._heartbeat_task and not self._heartbeat_task.done():
@@ -218,15 +218,15 @@ class AgentService(AgentServiceServicer):
             self._gateway_address = None
 
         except grpc.aio.AioRpcError as e:
-            self._logger.error(f"<Agent>: Deegister failed from Gateway ({self._gateway_address}). "
+            self._logger.error(f"<Agent>: Failed to deregister from Gateway at [{self._gateway_address}] - "
                                f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # Handle BrokenPipeError
                 pass
             raise
         except Exception as e:
-            self._logger.error(f"<Agent>: Deregister failed from Gateway ({self._gateway_address})."
-                               f" Other exception: {str(e)}")
+            self._logger.error(f"<Agent>: Failed to deregister from Gateway at [{self._gateway_address}] - "
+                               f"Exception: {str(e)}")
             
     async def get_gateway_node(self, domain: str = 'default'):
         """
@@ -244,15 +244,15 @@ class AgentService(AgentServiceServicer):
             # load peers
             await self._update_peers(response.peers)  # update peers
 
-            self._logger.info(f"<Agent>: Update peers from GW ({self._gateway_address})")
+            self._logger.info(f"<Agent>: Updated peers from Gateway at [{self._gateway_address}]")
 
         except grpc.aio.AioRpcError as e:
-            self._logger.error(f"<Agent>: Failed to get nodes info from Gateway "
-                               f"({self._gateway_address}). "
+            self._logger.error(f"<Agent>: Failed to get node information from Gateway "
+                               f"at [{self._gateway_address}] - "
                                f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # 处理 BrokenPipeError
                 pass
         except Exception as e:
-            self._logger.error(f"<Agent>: Failed to get nodes info from Gateway "
-                               f"({self._gateway_address}). Other exception: {str(e)}")
+            self._logger.error(f"<Agent>: Failed to get node information from Gateway "
+                               f"at [{self._gateway_address}] - Exception: {str(e)}")

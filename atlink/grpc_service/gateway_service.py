@@ -135,21 +135,21 @@ class GatewayService(GatewayServiceServicer):
         """
         node_info = await self.get_node_info(node_id)
         if not node_info:
-            self._logger.warning(f"<GW>: Try to remove node [{node_id}] but not found in registry.")
+            self._logger.warning(f"<Gateway>: Attempted to remove node [{node_id}] but not found in registry")
             return False
         else:
             del self._registry[node_id]
             del self._last_heartbeats[node_id]
             self._registered_addresses.discard(node_info.address)
             await self._connection_pool.close_stub(node_info.address)
-            self._logger.info(f"<GW>: Remove node [{node_id}] from registry. Connection terminated.")
+            self._logger.info(f"<Gateway>: Removed node [{node_id}] from registry - Connection terminated")
             return True
 
     async def _handle_server_termination(self):
         try:
             await self._server.wait_for_termination()
         except Exception as e:
-            self._logger.error(f"<GW>: Error during gRPC server termination: {e}")
+            self._logger.error(f"<Gateway>: Failed to terminate gRPC server - Exception: {e}")
         finally:
             await self._server.stop(1)
 
@@ -188,15 +188,15 @@ class GatewayService(GatewayServiceServicer):
         address = request.address
         
         if agent_id in self._registry:
-            self._logger.error(f"<GW>: Try to register an already registered Agent [{agent_id}].")
+            self._logger.error(f"<Gateway>: Attempted to register already registered Agent [{agent_id}]")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
             context.set_details(f"Agent [{agent_id}] already registered.")
             
             return
 
         if address in self._registered_addresses:
-            self._logger.error(f"<GW>: Agent [{agent_id}] Try to register an already "
-                                f"registered address [{address}].")
+            self._logger.error(f"<Gateway>: Agent [{agent_id}] attempted to register already "
+                                f"registered address [{address}]")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
             context.set_details(f"Address [{address}] already registered.")
             
@@ -209,7 +209,7 @@ class GatewayService(GatewayServiceServicer):
         self._last_heartbeats[agent_id] = time.time()
 
         await self._connection_pool.create_stub(address, AgentServiceStub)
-        self._logger.info(f"<GW>: Register Agent [{agent_id}], addr in [{address}]")
+        self._logger.info(f"<Gateway>: Registered Agent [{agent_id}] at address [{address}]")
 
         peers = await self._collect_node_peers()  # collect peers
 
@@ -225,15 +225,15 @@ class GatewayService(GatewayServiceServicer):
         address = request.address
         
         if tool_id in self._registry:
-            self._logger.error(f"<GW>: Try to register an already registered Tool [tool_id].")
+            self._logger.error(f"<Gateway>: Attempted to register already registered Tool [tool_id]")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
             context.set_details(f"Tool [{tool_id}] already registered.")
             
             return
 
         if address in self._registered_addresses:
-            self._logger.error(f"<GW>: Tool [{tool_id}] Try to register an already "
-                                f"registered address [{address}].")
+            self._logger.error(f"<Gateway>: Tool [{tool_id}] attempted to register already "
+                                f"registered address [{address}]")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
             context.set_details(f"Address [{address}] already registered.")
             
@@ -246,7 +246,7 @@ class GatewayService(GatewayServiceServicer):
         self._last_heartbeats[tool_id] = time.time()
 
         await self._connection_pool.create_stub(address, ToolServiceStub)
-        self._logger.info(f"<GW>: Register Tool [{tool_id}], addr in [{address}]")
+        self._logger.info(f"<Gateway>: Registered Tool [{tool_id}] at address [{address}]")
         
         return pb2.RegisterToolResponse(
             success=True
@@ -265,7 +265,7 @@ class GatewayService(GatewayServiceServicer):
                        request: pb2.GetNodesRequest,
                        context: grpc.aio.ServicerContext) -> pb2.GetNodesResponse:
 
-        self._logger.info(f"<GW>: Agent [{request.agent_id}] requests nodes info")
+        self._logger.info(f"<Gateway>: Agent [{request.agent_id}] requests node information")
         peers = await self._collect_node_peers(request.domain)  # collect peers
 
         return pb2.GetNodesResponse(
@@ -301,7 +301,7 @@ class GatewayService(GatewayServiceServicer):
                 # Check all registered nodes
                 for node_id, last_heartbeat in list(self._last_heartbeats.items()):
                     if (current_time - last_heartbeat) > self.heartbeat_timeout:
-                        self._logger.debug(f"<GW>: Node {node_id} heartbeat timeout")
+                        self._logger.debug(f"<Gateway>: Node [{node_id}] heartbeat timeout")
                         nodes_to_disconnect.append(node_id)
 
                 # Disconnect timed-out nodes
@@ -312,7 +312,7 @@ class GatewayService(GatewayServiceServicer):
                 await asyncio.sleep(self.heartbeat_interval)
 
             except Exception as e:
-                self._logger.error(f"Error in heartbeat monitor: {e}")
+                self._logger.error(f"<Gateway>: Error in heartbeat monitor: {e}")
                 await asyncio.sleep(5)
 
     async def start(self):
@@ -320,7 +320,7 @@ class GatewayService(GatewayServiceServicer):
         add_GatewayServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        self._logger.info(f"<GW>: Gateway [{self.gateway_id}] started on [{self.address}]")
+        self._logger.info(f"<Gateway>: Gateway [{self.gateway_id}] started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         # Start heartbeat monitor
@@ -341,7 +341,7 @@ class GatewayService(GatewayServiceServicer):
 
         if self._server:
             await self._server.stop(grace=10.0)
-            self._logger.info(f"<GW>: Gateway service [{self.gateway_id}] at "
+            self._logger.info(f"<Gateway>: Gateway service [{self.gateway_id}] at "
                               f"[{self.address}] stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()

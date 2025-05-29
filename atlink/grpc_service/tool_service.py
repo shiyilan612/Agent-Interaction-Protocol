@@ -64,7 +64,7 @@ class ToolService(ToolServiceServicer):
         try:
             await self._server.wait_for_termination()
         except Exception as e:
-            self._logger.error(f"<Tool>: Error during gRPC server termination: {e}")
+            self._logger.error(f"<Tool>: Failed to terminate gRPC server - Exception: {e}")
         finally:
             await self._server.stop(1)
 
@@ -95,18 +95,18 @@ class ToolService(ToolServiceServicer):
                 # Send heartbeat
                 response = await stub.Heartbeat(request)
                 if not response.success:
-                    self._logger.debug(f"<{self.tool_id}>: Heartbeat failed: {response.message}")
+                    self._logger.debug(f"<Tool>: Heartbeat failed: {response.message}")
                 else:
-                    self._logger.debug(f"<{self.tool_id}>: Heartbeat sent successfully")
+                    self._logger.debug(f"<Tool>: Heartbeat sent successfully")
 
                 # Wait for the next interval
                 await asyncio.sleep(self.heartbeat_interval)
 
             except grpc.aio.AioRpcError as e:
-                self._logger.error(f"<{self.tool_id}>: Heartbeat RPC error: {e.details()}")
+                self._logger.error(f"<Tool>: Heartbeat RPC error: {e.details()}")
                 await asyncio.sleep(self.heartbeat_interval)
             except Exception as e:
-                self._logger.error(f"<{self.tool_id}>: Heartbeat error: {str(e)}")
+                self._logger.error(f"<Tool>: Heartbeat error: {str(e)}")
                 await asyncio.sleep(self.heartbeat_interval)
             
     async def start(self):
@@ -148,21 +148,21 @@ class ToolService(ToolServiceServicer):
             # Register Tool with gateway
             response = await stub.RegisterTool(self.tool_info)
             
-            self._logger.info(f"<Tool>: Register {'successfully' if response else 'failed'} "
-                              f"to Gateway ({gateway_address})")
+            self._logger.info(f"<Tool>: {'Registered' if response else 'Failed to register'}"
+                              f" to Gateway at [{gateway_address}]")
 
             self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
             
         except grpc.aio.AioRpcError as e:
-            self._logger.error(f"<Tool>: Register failed to Gateway ({gateway_address}). "
+            self._logger.error(f"<Tool>: Failed to register to Gateway at [{gateway_address}] - "
                                f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # Handle BrokenPipeError
                 pass
             raise
         except Exception as e:
-            self._logger.error(f"<Tool>: Register failed to Gateway ({gateway_address}). "
-                               f"Other exception: {str(e)}")
+            self._logger.error(f"<Tool>: Failed to register to Gateway at [{gateway_address}] - "
+                               f"Exception: {str(e)}")
             
     async def disconnect_from_gateway(self):
         """
@@ -175,8 +175,8 @@ class ToolService(ToolServiceServicer):
             response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.tool_id))          
             await self._connection_pool.close_stub(self._gateway_address)
             
-            self._logger.info(f"<Tool>: Deregister {'successfully' if response.success else 'failed'} "
-                              f"from Gateway ({self._gateway_address})")
+            self._logger.info(f"<Tool>: {'Deregistered' if response else 'Failed to deregister'}"
+                              f" from Gateway at [{self._gateway_address}]")
 
             # Cancel heartbeat task
             if self._heartbeat_task and not self._heartbeat_task.done():
@@ -189,12 +189,12 @@ class ToolService(ToolServiceServicer):
             self._gateway_address = None
 
         except grpc.aio.AioRpcError as e:
-            self._logger.error(f"<Tool>: Deegister failed from Gateway ({self._gateway_address}). "
+            self._logger.error(f"<Tool>: Failed to deregister from Gateway at [{self._gateway_address}] - "
                                f"RPC Error: {e.code()}, details: {e.details()}")
             if e.code() == grpc.StatusCode.UNKNOWN:
                 # Handle BrokenPipeError
                 pass
             raise
         except Exception as e:
-            self._logger.error(f"<Tool>: Deregister failed from Gateway ({self._gateway_address})."
-                               f" Other exception: {str(e)}")
+            self._logger.error(f"<Tool>: Failed to deregister from Gateway at [{self._gateway_address}] - "
+                               f"Exception: {str(e)}")

@@ -40,7 +40,7 @@ class AgentServer(AgentService):
             receiver_id = first_message.receiver_id
             
             self._logger.debug(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
-                               f"Received request")
+                               f"Request received")
 
             if first_message.session_status != SessionStatus.START_QUEST:
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
@@ -76,7 +76,7 @@ class AgentServer(AgentService):
             await self.session_mgr.put_request(first_message)
             async for request in request_iterator:
                 self._logger.debug(f"<Agent>: [AgentMessage {sender_id} -> {receiver_id}] "
-                               f"Received request")
+                               f"Request received")
                 await self.session_mgr.put_request(AgentMessage.from_grpc(request))
 
         receive_task = asyncio.create_task(receive_requests())
@@ -84,14 +84,14 @@ class AgentServer(AgentService):
         try:
             async for response in session.get_response():
                 self._logger.debug(f"<Agent>: [AgentMessage {receiver_id} -> {sender_id}] "
-                               f"Send response")
+                               f"Response sent")
                 yield response.to_grpc()
                 if response.session_status == SessionStatus.STOP_RESPONSE:
                     break
         except RuntimeError as e:
-            self._logger.error(f"<Agent> Failed to get response for client Agnet [{sender_id}]"
-                                f" in session [{session.session_id}]"
-                                f". INTERNAL Error: {e.code()}, details: {e.details()}")
+            self._logger.error(f"<Agent>: Failed to get response for client Agent [{sender_id}]"
+                                f" in session [{session.session_id}] - "
+                                f"INTERNAL Error: {e.code()}, details: {e.details()}")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"{str(e)}")
             

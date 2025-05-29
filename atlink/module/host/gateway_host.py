@@ -47,7 +47,7 @@ class GatewayHost(GatewayService):
             if first_message.session_status != SessionStatus.START_QUEST:
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details("First message must be START_QUEST")
-                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] First message "
+                self._logger.error(f"<Gateway>: [AgentMessage {sender_id} -> {receiver_id}] First message "
                                 f"is not START_QUEST")
                 return
 
@@ -55,7 +55,7 @@ class GatewayHost(GatewayService):
             if not client_session_id:
                 context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
                 context.set_details("Missing session_id in START_QUEST")
-                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Missing "
+                self._logger.error(f"<Gateway>: [AgentMessage {sender_id} -> {receiver_id}] Missing "
                                 f"session_id in START_QUEST")
                 return
             
@@ -63,8 +63,8 @@ class GatewayHost(GatewayService):
             if not stub:
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details("Receiver not found")
-                self._logger.error(f"<GW>: [AgentMessage {sender_id} -> {receiver_id}] Routing "
-                                f"failed. Receiver not found")
+                self._logger.error(f"<Gateway>: [AgentMessage {sender_id} -> {receiver_id}] Routing "
+                                f"failed - Receiver not found")
                 return
             
             session = await self.session_mgr.create_or_get_session(session_id=first_message.session_id,
@@ -75,7 +75,7 @@ class GatewayHost(GatewayService):
         except StopAsyncIteration:
             context.set_code(grpc.StatusCode.ABORTED)
             context.set_details("Empty request stream")
-            self._logger.error(f"<GW>: [AgentMessage] Empty request stream")
+            self._logger.error(f"<Gateway>: [AgentMessage] Empty request stream")
             
             return
         
@@ -89,7 +89,7 @@ class GatewayHost(GatewayService):
         try:
             # yield the responses from the session
             async for response in session.get_response():
-                self._logger.info(f"<GW>: [AgentMessage {receiver_id} -> {sender_id}] Route "
+                self._logger.info(f"<Gateway>: [AgentMessage {receiver_id} -> {sender_id}] Routing "
                                   f"response in session [{session.session_id}]")
                 yield response.to_grpc()
                 
@@ -97,8 +97,8 @@ class GatewayHost(GatewayService):
                     # close the session if the response is STOP_RESPONSE
                     break
         except grpc.RpcError as e:
-            self._logger.error(f"<GW> [AgentMessage {receiver_id} -> {sender_id}] Error happened"
-                                f" in session [{session.session_id}]. "
+            self._logger.error(f"<Gateway>: [AgentMessage {receiver_id} -> {sender_id}] Error occurred"
+                                f" in session [{session.session_id}] - "
                                 f"RPC Error: {e.code()}, details: {e.details()}")
             context.set_code(e.code())
             context.set_details(e.details())
@@ -108,7 +108,7 @@ class GatewayHost(GatewayService):
         finally:
             forward_task.cancel()
             await self.session_mgr.close_session(session_id=session.session_id)
-            self._logger.info(f"<GW>: Session [{session.session_id}] closed")
+            self._logger.info(f"<Gateway>: Session [{session.session_id}] closed")
             
         
     async def _forward_agent_message(self, session: GatewaySession, message: pb2.AgentMessage) -> None:
@@ -121,8 +121,8 @@ class GatewayHost(GatewayService):
         """
         # route the message to the receiver by session
         await session.enqueue_forward_message(message)
-        self._logger.info(f"<GW>: [AgentMessage {message.sender_id} -> {message.receiver_id}]"
-                            f" Route request in session [{session.session_id}]")
+        self._logger.info(f"<Gateway>: [AgentMessage {message.sender_id} -> {message.receiver_id}]"
+                            f" Routing request in session [{session.session_id}]")
 
             
     async def RouteToolCalling(self,
@@ -148,20 +148,20 @@ class GatewayHost(GatewayService):
         if not stub:
             context.set_code(grpc.StatusCode.NOT_FOUND)
             context.set_details("Receiver not found")
-            self._logger.error(f"<GW>: [ToolRequest {sender_id} -> {receiver_id}]"
-                               f" Routing failed. Receiver not found")
+            self._logger.error(f"<Gateway>: [ToolRequest {sender_id} -> {receiver_id}]"
+                               f" Routing failed - Receiver not found")
             return
         
         try:
-            self._logger.info(f"<GW>: [ToolRequest {sender_id} -> {receiver_id}] Route request")
+            self._logger.info(f"<Gateway>: [ToolRequest {sender_id} -> {receiver_id}] Routing request")
             response = await stub.CallTool(request)
 
-            self._logger.info(f"<GW>: [ToolResponse {receiver_id} -> {sender_id}] Route response")
+            self._logger.info(f"<Gateway>: [ToolResponse {receiver_id} -> {sender_id}] Routing response")
             return response
 
         except grpc.RpcError as e:
-            self._logger.error(f"<GW>: [ToolResponse {sender_id} -> {receiver_id}] Route "
-                  f"ToolCalling failed: RPC Error: {e.code()}, details: {e.details()}")
+            self._logger.error(f"<Gateway>: [ToolResponse {sender_id} -> {receiver_id}] "
+                  f"Tool response routing failed: RPC Error: {e.code()}, details: {e.details()}")
             # delete failed node
             await super()._deregister_node(request.receiver_id)
             return
