@@ -1,6 +1,6 @@
 # run_gateway.py
 import asyncio
-from atlink.module import Gateway
+from atlink_aip.module import Gateway
 
 async def main():
     gateway = Gateway(address="localhost:50050", gateway_id="test_gw")

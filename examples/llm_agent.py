@@ -12,9 +12,9 @@ import json
 import openai
 from functools import partial
 from typing import Dict, List, Tuple, Union
-from atlink.grpc_service.type import AgentInfo, ToolInfo, AgentMessage
-from atlink.grpc_service.type import AgentSkill, SessionStatus, Mode
-from atlink.module import Agent
+from atlink_aip.grpc_service.type import AgentInfo, ToolInfo, AgentMessage
+from atlink_aip.grpc_service.type import AgentSkill, SessionStatus, Mode
+from atlink_aip.module import Agent
 
 
 class LLMConfig:

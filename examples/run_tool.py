@@ -1,6 +1,6 @@
 import asyncio
 import argparse
-from atlink.module import Tool
+from atlink_aip.module import Tool
 
 
 async def calculate_sum(a: int, b: int) -> int:
