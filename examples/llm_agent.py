@@ -377,7 +377,7 @@ class LLMAgent(Agent):
 async def main(agent_id: str, agent_address: str, gateway_address: str):
     # Create and start Assistant Agent
     llmconfig = LLMConfig(
-        api_url = "http://172.18.36.90:8106/v1",
+        api_url = "http://127.0.0.1:8106/v1",
         api_key = "Empty",
         model_name = "Qwen7B"
     )
