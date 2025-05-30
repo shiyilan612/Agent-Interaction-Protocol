@@ -8,7 +8,7 @@ import os
 import time
 import logging
 from typing import Union
-from tinydb import TinyDB, Query
+from tinydb import TinyDB
 from ..grpc_service.type import AgentMessage, ToolRequest, ToolResponse
 
 
@@ -44,11 +44,21 @@ class ContextMemory:
         else:
             db.insert(message.to_dict())
 
-    def search(self):
-        pass
+    def search(self, task_id, condtion):
+        db = self.dbs.get(task_id)
+        if db:
+            return db.search(condtion)
+        else:
+            logging.error(f"Memory of {task_id} is not existed")
+            return None
 
     def listall(self, task_id):
-        return self.dbs[task_id].all()
+        db = self.dbs.get(task_id)
+        if db:
+            return db.all()
+        else:
+            logging.error(f"Memory of {task_id} is not existed")
+            return None
 
     def update(self):
         pass
