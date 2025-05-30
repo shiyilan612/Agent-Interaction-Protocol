@@ -11,14 +11,14 @@ async def main(gateway_address):
     #create API tool
     siRNA_tool = Tool.create_api_tool(
         address="localhost:50061",
-        api_url="https://gateway.taichuai.cn/oligo-former/infer",
+        api_url="https://siRNA_tool_url",
         api_method="POST",
         api_timeout=100,
         name="小核酸siRNA效力预测",
         tool_id="tool1",
         description="用于小核酸预测siRNA对给定mRNA序列的抑制效果的工具",
         arguments={
-            "mRNA": "mRNA 序列列表，每个序列将被分析以设计 siRNA",
+            "mRNA": "参数是一个列表，列表中的每个元素代表mRNA序列，将被分析以设计 siRNA",
             "siRNA": "可选的 siRNA 序列列表，用于评估特定 siRNA 的效果",
             "config": "配置参数对象，包含 top_n, no_func, off_target, toxicity, all_human 等选项"
         }
