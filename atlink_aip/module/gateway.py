@@ -8,7 +8,7 @@ Created on Thu Apr 24 16:00:41 2025
 import uuid
 from typing import Dict, List, Union
 
-from ..grpc_service.type import AgentInfo, ToolInfo
+from ..grpc_service.type import AgentInfo, ToolBoxInfo
 from ..module.host import GatewayHost
 from ..logger import LoggerManager
 
@@ -62,7 +62,7 @@ class Gateway:
         # This is a placeholder for the actual implementation
         pass
 
-    async def get_registered_nodes(self) -> Dict[str, Union[AgentInfo, ToolInfo]]:
+    async def get_registered_nodes(self) -> Dict[str, Union[AgentInfo, ToolBoxInfo]]:
         """
         Get all registered nodes (agents and tools).
 
@@ -92,15 +92,15 @@ class Gateway:
         agents_info = await self._host.get_agents_info()
         return agents_info
 
-    async def get_registered_tools(self) -> Dict[str, ToolInfo]:
+    async def get_registered_tools(self) -> Dict[str, ToolBoxInfo]:
         """
-        Get all registered tools.
+        Get all registered toolboxes.
 
         Returns:
-            Dict of tool_id -> tool_info
+            Dict of toolbox_id -> toolbox_info
         """
         if not self._host:
             return {}
 
-        tools_info = await self._host.get_tools_info()
-        return tools_info
+        toolboxes_info = await self._host.get_tools_info()
+        return toolboxes_info

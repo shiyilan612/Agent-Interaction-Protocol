@@ -49,8 +49,6 @@ class Tool:
     """
     
     def __init__(self, 
-                 address: str,
-                 tool_id: str = None,
                  name: str = None,
                  domain: str = "default",
                  description: str = "",
@@ -62,9 +60,7 @@ class Tool:
         Initialize a new Tool.
         
         Args:
-            address: Address where this tool will be hosted (e.g., "localhost:50051")
-            tool_id: Unique identifier for this tool (defaults to UUID if not provided)
-            name: Human-readable name for this tool
+            name: Human-readable name for this tool (defaults to UUID if not provided)
             domain: Tool group/domain 
             description: Detailed description of the tool's functionality
             version: Tool version
@@ -72,9 +68,7 @@ class Tool:
             output_mode: Output modality provided by the tool
             arguments: Dictionary of argument names and their descriptions
         """
-        self.address = address
-        self.tool_id = tool_id if tool_id else f"tool_{str(uuid.uuid4())}"
-        self.name = name if name else self.tool_id
+        self.name = name if name else f"tool_{str(uuid.uuid4())}"
         self.domain = domain
         self.description = description
         self.version = version
@@ -90,23 +84,18 @@ class Tool:
         # Create tool info
         self.tool_info = self._create_tool_info()
         
-        # Server instance
-        self._server = None
-        
         # Gateway connection
         self._gateway_address = None
         
         # Request processing function
-        self._process_request_func = None
+        self._process_request_func = self._default_process_request_handler
         
         self._logger_mgr = LoggerManager()
-        self._logger = self._logger_mgr.get_logger(self.tool_id)
+        self._logger = self._logger_mgr.get_logger(self.name)
         
     def _create_tool_info(self) -> ToolInfo:
         """Create a ToolInfo object for registration with the gateway."""
         tool_info = ToolInfo(
-            tool_id=self.tool_id,
-            address=self.address,
             name=self.name,
             domain=self.domain,
             input_mode=self.input_mode,
@@ -116,7 +105,6 @@ class Tool:
             arguments=self.arguments
         )
         return tool_info
-    
     
     
     async def update_tool_info(self, 
@@ -145,14 +133,9 @@ class Tool:
             self.arguments = arguments
         
         # Create updated agent info
-        updated_tool_info = self._create_tool_info()
-        
-        # Pass to server
-        if self._server:
-            await self._server.update_tool_info(updated_tool_info)
+        self.tool_info = self._create_tool_info()
         
         return self
-    
     
     
     def set_process_request_handler(self, handler: Callable[[ToolRequest], ToolResponse]):
@@ -178,9 +161,8 @@ class Tool:
         Returns:
             ToolResponse containing the result or error
         """
-        self._logger.info(f"<Tool>: Tool [{self.tool_id}] received request from "
+        self._logger.info(f"<Tool>: Tool [{self.name}] received request from "
                           f"[{request.sender_id}]")
-        assert (request.receiver_id == self.tool_id)
         try:
             try:
                 parsed_args = json.loads(request.arguments) if request.arguments else {}
@@ -193,12 +175,12 @@ class Tool:
                 result = await self._execute_custom_func(parsed_args)
                 citem = ContentItem.write_text(str(result))
                 response = ToolResponse(
-                    sender_id=self.tool_id,
+                    sender_id="",
                     receiver_id=request.sender_id,
                     session_id=request.session_id,
-                    content = [citem],
-                    is_error = False,
-                    error_message = "No Error"
+                    content=[citem],
+                    is_error=False,
+                    error_message="No Error"
                 )
 
             elif self._api_config is not None:
@@ -209,7 +191,7 @@ class Tool:
                 else:
                     citem = ContentItem.write_text(json.dumps(result, indent=2))
                 response = ToolResponse(
-                    sender_id=self.tool_id,
+                    sender_id="",
                     receiver_id=request.sender_id,
                     session_id=request.session_id,
                     content=[citem],
@@ -226,7 +208,7 @@ class Tool:
             else:
                 # No executor or api_config defined
                 response = ToolResponse(
-                    sender_id=self.tool_id,
+                    sender_id="",
                     receiver_id=request.sender_id,
                     session_id=request.session_id,
                     content=[],
@@ -239,7 +221,7 @@ class Tool:
         except Exception as e:
             # Handle any exceptions during processing
             return ToolResponse(
-                sender_id=self.tool_id,
+                sender_id="",
                 receiver_id=request.sender_id,
                 session_id=request.session_id,
                 content=[],
@@ -319,35 +301,9 @@ class Tool:
                     
                 return result
     
-    async def start(self):
-        """Start the tool server."""
-        if not self._process_request_func:
-            self._process_request_func = self._default_process_request_handler
-        
-        self._server = ToolServer(self.tool_info, self._process_request_func)
-        await self._server.start()
-        return self
-    
-    async def stop(self):
-        """Stop the tool server."""
-        if self._server:
-            await self._server.stop()
-            
-        # Stop loggers
-        self._logger_mgr.stop()
-    
-    async def register_to_gateway(self, gateway_address: str):
-        """Register to the gateway service."""
-        self._gateway_address = gateway_address
-        if self._server:
-            await self._server.connect_to_gateway(gateway_address)
-        return self
-    
     @classmethod
     def create_function_tool(cls,
                              function: Callable,
-                             address: str,
-                             tool_id: str = None,
                              name: str = None,
                              domain: str = "default",
                              description: str = None,
@@ -360,8 +316,6 @@ class Tool:
 
         Args:
             function: The function to wrap as a tool
-            address: Address where this tool service will be hosted
-            tool_id: Unique identifier (defaults to function name if not provided)
             name: Human-readable name (defaults to function name if not provided)
             domain: Tool domain/group
             description: Tool description (defaults to function docstring if not provided)
@@ -373,9 +327,7 @@ class Tool:
         Returns:
             An initialized Tool instance
         """
-        # Use function name as default tool ID and name
-        if not tool_id:
-            tool_id = function.__name__
+        # Use function name as default tool name
         if not name:
             name = function.__name__
 
@@ -403,9 +355,7 @@ class Tool:
 
         # Create the Tool instance
         tool = cls(
-            tool_id=tool_id,
             name=name,
-            address=address,
             domain=domain,
             description=description,
             version=version,
@@ -422,12 +372,10 @@ class Tool:
     
     @classmethod
     def create_api_tool(cls,
-                       address: str,
                        api_url: str,
                        api_method: str = "GET",
                        api_headers: Dict[str, str] = None,
                        api_timeout: int = 30,
-                       tool_id: str = None,
                        name: str = None,
                        domain: str = "default",
                        description: str = "",
@@ -439,12 +387,10 @@ class Tool:
         Create a Tool from an API configuration.
         
         Args:
-            address: Address where this tool service will be hosted
             api_url: The API endpoint URL (can contain placeholders like {param_name})
             api_method: HTTP method (GET, POST, PUT, DELETE, etc.)
             api_headers: HTTP headers to include in the request
             api_timeout: Request timeout in seconds
-            tool_id: Unique identifier for this tool
             name: Human-readable name for this tool
             domain: Tool domain/group
             description: Tool description
@@ -456,12 +402,10 @@ class Tool:
         Returns:
             An initialized Tool instance configured for API calls
         """
-        # Generate a default tool_id and name if not provided
-        if not tool_id:
-            base_name = api_url.split("/")[-1] if api_url.split("/")[-1] else api_url.split("/")[-2]
-            tool_id = f"api_{base_name}_{str(uuid.uuid4())[:8]}"
+        # Generate a default name if not provided
         if not name:
-            name = tool_id
+            base_name = api_url.split("/")[-1] if api_url.split("/")[-1] else api_url.split("/")[-2]
+            name = f"api_{base_name}_{str(uuid.uuid4())[:8]}"
         # Extract arguments from URL placeholders if not provided
         if not arguments:
             arguments = {}
@@ -473,9 +417,7 @@ class Tool:
                         
         # Create the Tool instance
         tool = cls(
-            tool_id=tool_id,
             name=name,
-            address=address,
             domain=domain,
             description=description,
             version=version,
@@ -505,12 +447,27 @@ class Tool:
         # Create the requst
         request = ToolRequest(
             sender_id="direct_caller",
-            receiver_id=self.tool_id,
+            receiver_id="direct_toolbox",
             session_id=f"session_{uuid.uuid4().hex[:8]}",
             tool_name=self.name or "unknown",
             arguments=arguments or {}
         )
 
         return await self._default_process_request_handler(request)
+    
+    async def invoke_tool(self, request: ToolRequest) -> ToolResponse:
+        """
+        Invoke this tool through the toolbox.
+        
+        Args:
+            request: The incoming tool request
+
+        Returns:
+            ToolResponse containing the result or error
+        """
+
+        response = await self._process_request_func(request)
+
+        return response
         
         

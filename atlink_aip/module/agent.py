@@ -106,8 +106,8 @@ class Agent:
         for (session_id, receiver_id) in list(self._agent_clients.keys()):
             await self.close_agent_client(session_id, receiver_id)
             
-        for tool_id in list(self._tool_clients.keys()):
-            await self.close_tool_client(tool_id)
+        for toolbox_id in list(self._tool_clients.keys()):
+            await self.close_tool_client(toolbox_id)
         
         # Stop the server
         if self._server:
@@ -480,7 +480,7 @@ class Agent:
         return request
 
     async def call_tool(self, 
-                        tool_id: str, 
+                        toolbox_id: str, 
                         session_id: str = None,
                         tool_name: str = None,
                         arguments: Dict[str, Any] = None) -> ToolResponse:
@@ -488,7 +488,7 @@ class Agent:
         Call a tool with the given ID through gateway.
         
         Args:
-            tool_id (str): ID of the tool to call.
+            toolbox_id (str): ID of the toolbox to call.
             session_id: Optional session ID (automatically generated if not provided)
             arguments (Dict[str, Any], optional): Arguments for the tool call.
             
@@ -501,7 +501,7 @@ class Agent:
             
             
         # Check if we already have an tool client for this receiver tool
-        tool_client = self._tool_clients.get(tool_id)
+        tool_client = self._tool_clients.get(toolbox_id)
         
         # Create a new client if none exists
         if not tool_client:
@@ -511,11 +511,11 @@ class Agent:
                 GatewayServiceStub,
                 "RouteToolCalling"
             )
-            self._tool_clients[tool_id] = tool_client
+            self._tool_clients[toolbox_id] = tool_client
                 
         # Create tool request
         request = self.create_tool_request(
-                receiver_id=tool_id,
+                receiver_id=toolbox_id,
                 session_id=session_id or tool_client.session.session_id,
                 tool_name=tool_name,
                 arguments=arguments if arguments else {}
@@ -528,28 +528,28 @@ class Agent:
                 
         except TimeoutError:
             # Handle timeout specifically
-            self._logger.error(f"<Agent>: Tool call to [{tool_id}] timed out")
+            self._logger.error(f"<Agent>: Tool call to [{toolbox_id}] timed out")
             raise
         except Exception as e:
             # Handle other exceptions
-            self._logger.error(f"<Agent>: Failed to call tool [{tool_id}] - Exception: {str(e)}")
+            self._logger.error(f"<Agent>: Failed to call tool [{toolbox_id}] - Exception: {str(e)}")
             raise
     
-    async def close_tool_client(self, tool_id: str) -> bool:
+    async def close_tool_client(self, toolbox_id: str) -> bool:
         """
         Close a specific tool client.
         
         Args:
-            tool_id: ID of the tool
+            toolbox_id: ID of the toolbox
             
         Returns:
             True if client was closed, False if not found
         """
-        client = self._tool_clients.pop(tool_id, None)
+        client = self._tool_clients.pop(toolbox_id, None)
         if client:
             try:
                 await client.close()
-                self._logger.debug(f"Cleaned up tool client for [{tool_id}]")
+                self._logger.debug(f"Cleaned up tool client for [{toolbox_id}]")
             except Exception as e:
                 self._logger.error(f"<Agent>: Failed to clean up tool client - Exception: {e}")
             return True

@@ -22,26 +22,23 @@ class ToolService(ToolServiceServicer):
     """Base ToolService class for handling tool requests and registration with gateway."""
     
     def __init__(self,
-                 tool_info: pb2.ToolInfo,
+                 toolbox_info: pb2.ToolBoxInfo,
                  heartbeat_interval: int = 10):
         """
         Initialize a new Tool instance.
 
         Args:
-            tool_info:
+            toolbox_info: 
                  address: str,
-                 tool_id: str = None,
+                 toolbox_id: str = None,
                  name: str = None,
                  domain: str = "default",
                  description: str = "",
-                 version: str = "1.0.0",
-                 input_mode: pb2.Mode = pb2.Mode.TEXT,
-                 output_mode: pb2.Mode = pb2.Mode.TEXT,
-                 arguments: Dict[str, str] = None
+                 tools: List[ToolInfo] = []
         """
-        self.tool_info = tool_info
-        self.tool_id = self.tool_info.tool_id
-        self.address = self.tool_info.address
+        self.toolbox_info = toolbox_info
+        self.toolbox_id = self.toolbox_info.toolbox_id
+        self.address = self.toolbox_info.address
 
         # init gateway address
         self._gateway_address = None
@@ -50,7 +47,7 @@ class ToolService(ToolServiceServicer):
         self._server = None
         
         self._logger_mgr = LoggerManager()
-        self._logger = self._logger_mgr.get_logger(self.tool_id)
+        self._logger = self._logger_mgr.get_logger(self.toolbox_id)
 
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool(self._logger)
@@ -91,7 +88,7 @@ class ToolService(ToolServiceServicer):
         while True:
             try:
                 # Create heartbeat request
-                request = pb2.HeartbeatRequest(sender_id=self.tool_id)
+                request = pb2.HeartbeatRequest(sender_id=self.toolbox_id)
                 # Send heartbeat
                 response = await stub.Heartbeat(request)
                 if not response.success:
@@ -120,7 +117,7 @@ class ToolService(ToolServiceServicer):
         add_ToolServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        self._logger.info(f"<Tool>: Tool [{self.tool_id}] started on [{self.address}]")
+        self._logger.info(f"<Tool>: ToolBox [{self.toolbox_id}] started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         return self
@@ -130,7 +127,7 @@ class ToolService(ToolServiceServicer):
         if self._server:
             await self._server.stop(grace=10.0)
             await self.disconnect_from_gateway()
-            self._logger.info(f"<Tool>: Tool service [{self.tool_id}] at [{self.address}] stopped")
+            self._logger.info(f"<Tool>: ToolBox service [{self.toolbox_id}] at [{self.address}] stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
 
@@ -146,7 +143,7 @@ class ToolService(ToolServiceServicer):
         stub = self._connection_pool.get_stub(self._gateway_address)
         try:
             # Register Tool with gateway
-            response = await stub.RegisterTool(self.tool_info)
+            response = await stub.RegisterTool(self.toolbox_info)
             
             self._logger.info(f"<Tool>: {'Registered' if response else 'Failed to register'}"
                               f" to Gateway at [{gateway_address}]")
@@ -172,7 +169,7 @@ class ToolService(ToolServiceServicer):
 
         try:
             # deregister tool  
-            response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.tool_id))          
+            response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.toolbox_id))          
             await self._connection_pool.close_stub(self._gateway_address)
             
             self._logger.info(f"<Tool>: {'Deregistered' if response else 'Failed to deregister'}"
