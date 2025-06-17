@@ -22,7 +22,7 @@ from ...grpc_service import schema_pb2 as pb2
 logger = logging.getLogger(__name__)
 
 
-class MCPToolServerProxy(ToolService):
+class MCPToolProxy(ToolService):
     def __init__(self, tool_info: ToolInfo):
         super().__init__(tool_info.to_grpc())
         self.reader_task = None

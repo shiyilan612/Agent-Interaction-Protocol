@@ -1,1 +1,1 @@
-from .mcp_tool_server_proxy import MCPToolServerProxy as MCPTool
+from .mcp_tool_proxy import MCPToolProxy
