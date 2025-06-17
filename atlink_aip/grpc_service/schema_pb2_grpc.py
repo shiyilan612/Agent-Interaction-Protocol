@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from grpc_service import schema_pb2 as grpc__service_dot_schema__pb2
+from atlink_aip.grpc_service import schema_pb2 as grpc__service_dot_schema__pb2
 
 GRPC_GENERATED_VERSION = '1.71.0'
 GRPC_VERSION = grpc.__version__

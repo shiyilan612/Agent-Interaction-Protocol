@@ -170,14 +170,14 @@ class ContentItem:
 class Peer:
     def __init__(self):
         self._agent_info: Optional[AgentInfo] = None
-        self._tool_info: Optional[ToolInfo] = None
+        self._toolbox_info: Optional[ToolBoxInfo] = None
 
     def to_grpc(self) -> pb2.Peer:
         grpc_peer = pb2.Peer()
         if self._agent_info is not None:
             grpc_peer.agent_info.CopyFrom(self._agent_info.to_grpc())
-        elif self._tool_info is not None:
-            grpc_peer.tool_info.CopyFrom(self._tool_info.to_grpc())
+        elif self._toolbox_info is not None:
+            grpc_peer.toolbox_info.CopyFrom(self._toolbox_info.to_grpc())
         return grpc_peer
 
     @classmethod
@@ -186,8 +186,8 @@ class Peer:
         which = grpc_peer.WhichOneof("info_type")
         if which == "agent_info":
             peer.agent_info = AgentInfo.from_grpc(grpc_peer.agent_info)
-        elif which == "tool_info":
-            peer.tool_info = ToolInfo.from_grpc(grpc_peer.tool_info)
+        elif which == "toolbox_info":
+            peer.toolbox_info = ToolBoxInfo.from_grpc(grpc_peer.toolbox_info)
         return peer
 
 
@@ -317,7 +317,7 @@ class ToolBoxInfo:
         name: str = "",
         domain: str = "",
         description: str = "",
-        tools: List[ToolInfo] = None
+        tools: List[ToolInfo] = list()
     ):
         self.toolbox_id = toolbox_id
         self.address = address
@@ -326,7 +326,7 @@ class ToolBoxInfo:
         self.description = description
         self.tools = tools
 
-    def to_grpc(self) -> pb2.ToolInfo:
+    def to_grpc(self) -> pb2.ToolBoxInfo:
         return pb2.ToolBoxInfo(
             toolbox_id=self.toolbox_id,
             address=self.address,
@@ -337,7 +337,7 @@ class ToolBoxInfo:
         )
 
     @classmethod
-    def from_grpc(cls, grpc_obj: pb2.ToolInfo) -> 'ToolInfo':
+    def from_grpc(cls, grpc_obj: pb2.ToolBoxInfo) -> 'ToolBoxInfo':
         return cls(
             toolbox_id=grpc_obj.toolbox_id,
             address=grpc_obj.address,
