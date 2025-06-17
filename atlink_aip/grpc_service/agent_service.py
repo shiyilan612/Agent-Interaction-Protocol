@@ -47,7 +47,7 @@ class AgentService(AgentServiceServicer):
         self.address = self.agent_info.address
 
         # init peers dict
-        self._peers: Dict[str, Union[pb2.AgentInfo, pb2.ToolInfo]] = {}
+        self._peers: Dict[str, Union[pb2.AgentInfo, pb2.ToolBoxInfo]] = {}
 
         # init gateway address
         self._gateway_address = None
@@ -77,9 +77,9 @@ class AgentService(AgentServiceServicer):
             if set_field == "agent_info":
                 agent_info = peer.agent_info
                 self._peers.update({agent_info.agent_id: agent_info})
-            elif set_field == "tool_info":
-                tool_info = peer.tool_info
-                self._peers.update({tool_info.tool_id: tool_info})
+            elif set_field == "toolbox_info":
+                toolbox_info = peer.toolbox_info
+                self._peers.update({toolbox_info.toolbox_id: toolbox_info})
             else:
                 raise ValueError
 
