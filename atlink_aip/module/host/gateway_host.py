@@ -10,7 +10,7 @@ import asyncio
 from typing import Dict, AsyncIterable
 
 from ...grpc_service import GatewayService
-from ...grpc_service.type import AgentInfo, ToolInfo, AgentMessage, SessionStatus
+from ...grpc_service.type import AgentInfo, ToolInfo, ToolBoxInfo, AgentMessage, SessionStatus
 from ...grpc_service import schema_pb2 as pb2
 from ...session import GatewaySessionMagager, GatewaySession
 
@@ -177,13 +177,13 @@ class GatewayHost(GatewayService):
                       for node_id, info in self._registry.items() if isinstance(info, pb2.AgentInfo)}
         return agent_dict
     
-    async def get_tools_info(self) -> Dict[str, ToolInfo]:
+    async def get_tools_info(self) -> Dict[str, ToolBoxInfo]:
         """
-        Get all registered tools.
+        Get all registered toolboxes.
 
         Returns:
-            Dict[str, AgentInfo]: Dictionary of tool_id -> ToolInfo
+            Dict[str, ToolBoxInfo]: Dictionary of toolbox_id -> ToolBoxInfo
         """
-        tool_dict = {node_id: ToolInfo.from_grpc(info)
-                     for node_id, info in self._registry.items() if isinstance(info, pb2.ToolInfo)}
-        return tool_dict
+        toolbox_dict = {node_id: ToolBoxInfo.from_grpc(info)
+                     for node_id, info in self._registry.items() if isinstance(info, pb2.ToolBoxInfo)}
+        return toolbox_dict

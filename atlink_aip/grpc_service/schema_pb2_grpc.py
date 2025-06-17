@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from atlink_aip.grpc_service import schema_pb2 as atlink__aip_dot_grpc__service_dot_schema__pb2
+from atlink_aip.grpc_service import schema_pb2 as grpc__service_dot_schema__pb2
 
 GRPC_GENERATED_VERSION = '1.71.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in atlink_aip/grpc_service/schema_pb2_grpc.py depends on'
+        + f' but the generated code in grpc_service/schema_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -37,8 +37,8 @@ class AgentServiceStub(object):
         """
         self.CallAgent = channel.stream_stream(
                 '/grpc_service.AgentService/CallAgent',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.AgentMessage.FromString,
                 _registered_method=True)
 
 
@@ -58,8 +58,8 @@ def add_AgentServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'CallAgent': grpc.stream_stream_rpc_method_handler(
                     servicer.CallAgent,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.AgentMessage.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -88,8 +88,8 @@ class AgentService(object):
             request_iterator,
             target,
             '/grpc_service.AgentService/CallAgent',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.FromString,
+            grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
+            grpc__service_dot_schema__pb2.AgentMessage.FromString,
             options,
             channel_credentials,
             insecure,
@@ -113,8 +113,8 @@ class ToolServiceStub(object):
         """
         self.CallTool = channel.unary_unary(
                 '/grpc_service.ToolService/CallTool',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.ToolResponse.FromString,
                 _registered_method=True)
 
 
@@ -134,8 +134,8 @@ def add_ToolServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'CallTool': grpc.unary_unary_rpc_method_handler(
                     servicer.CallTool,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.ToolRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.ToolResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -164,8 +164,8 @@ class ToolService(object):
             request,
             target,
             '/grpc_service.ToolService/CallTool',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.ToolResponse.FromString,
+            grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.ToolResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -189,53 +189,53 @@ class GatewayServiceStub(object):
         """
         self.RouteAgentCalling = channel.stream_stream(
                 '/grpc_service.GatewayService/RouteAgentCalling',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.AgentMessage.FromString,
                 _registered_method=True)
         self.RouteToolCalling = channel.unary_unary(
                 '/grpc_service.GatewayService/RouteToolCalling',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.ToolResponse.FromString,
                 _registered_method=True)
         self.RegisterAgent = channel.unary_unary(
                 '/grpc_service.GatewayService/RegisterAgent',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentInfo.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterAgentResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.AgentInfo.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.RegisterAgentResponse.FromString,
                 _registered_method=True)
         self.RegisterTool = channel.unary_unary(
                 '/grpc_service.GatewayService/RegisterTool',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolInfo.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterToolResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.ToolBoxInfo.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.RegisterToolResponse.FromString,
                 _registered_method=True)
         self.DeregisterNode = channel.unary_unary(
                 '/grpc_service.GatewayService/DeregisterNode',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.DeregisterNodeRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.DeregisterNodeResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.DeregisterNodeRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.DeregisterNodeResponse.FromString,
                 _registered_method=True)
         self.GetNodes = channel.unary_unary(
                 '/grpc_service.GatewayService/GetNodes',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.GetNodesRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.GetNodesResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.GetNodesRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.GetNodesResponse.FromString,
                 _registered_method=True)
         self.Heartbeat = channel.unary_unary(
                 '/grpc_service.GatewayService/Heartbeat',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.HeartbeatRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.HeartbeatResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.HeartbeatRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.HeartbeatResponse.FromString,
                 _registered_method=True)
         self.UpdateNodeInfo = channel.unary_unary(
                 '/grpc_service.GatewayService/UpdateNodeInfo',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateNodeInfoRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateNodeInfoResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.UpdateNodeInfoRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.UpdateNodeInfoResponse.FromString,
                 _registered_method=True)
         self.SubscribeToUpdates = channel.unary_stream(
                 '/grpc_service.GatewayService/SubscribeToUpdates',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateSubscriptionRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.NodeUpdate.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.UpdateSubscriptionRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.NodeUpdate.FromString,
                 _registered_method=True)
         self.Unsubscribe = channel.unary_unary(
                 '/grpc_service.GatewayService/Unsubscribe',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UnsubscribeRequest.SerializeToString,
-                response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UnsubscribeResponse.FromString,
+                request_serializer=grpc__service_dot_schema__pb2.UnsubscribeRequest.SerializeToString,
+                response_deserializer=grpc__service_dot_schema__pb2.UnsubscribeResponse.FromString,
                 _registered_method=True)
 
 
@@ -318,53 +318,53 @@ def add_GatewayServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'RouteAgentCalling': grpc.stream_stream_rpc_method_handler(
                     servicer.RouteAgentCalling,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.AgentMessage.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
             ),
             'RouteToolCalling': grpc.unary_unary_rpc_method_handler(
                     servicer.RouteToolCalling,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.ToolRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.ToolResponse.SerializeToString,
             ),
             'RegisterAgent': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterAgent,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.AgentInfo.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterAgentResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.AgentInfo.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.RegisterAgentResponse.SerializeToString,
             ),
             'RegisterTool': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterTool,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolInfo.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterToolResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.ToolBoxInfo.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.RegisterToolResponse.SerializeToString,
             ),
             'DeregisterNode': grpc.unary_unary_rpc_method_handler(
                     servicer.DeregisterNode,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.DeregisterNodeRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.DeregisterNodeResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.DeregisterNodeRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.DeregisterNodeResponse.SerializeToString,
             ),
             'GetNodes': grpc.unary_unary_rpc_method_handler(
                     servicer.GetNodes,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.GetNodesRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.GetNodesResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.GetNodesRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.GetNodesResponse.SerializeToString,
             ),
             'Heartbeat': grpc.unary_unary_rpc_method_handler(
                     servicer.Heartbeat,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.HeartbeatRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.HeartbeatResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.HeartbeatRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.HeartbeatResponse.SerializeToString,
             ),
             'UpdateNodeInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateNodeInfo,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateNodeInfoRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateNodeInfoResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.UpdateNodeInfoRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.UpdateNodeInfoResponse.SerializeToString,
             ),
             'SubscribeToUpdates': grpc.unary_stream_rpc_method_handler(
                     servicer.SubscribeToUpdates,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateSubscriptionRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.NodeUpdate.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.UpdateSubscriptionRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.NodeUpdate.SerializeToString,
             ),
             'Unsubscribe': grpc.unary_unary_rpc_method_handler(
                     servicer.Unsubscribe,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UnsubscribeRequest.FromString,
-                    response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.UnsubscribeResponse.SerializeToString,
+                    request_deserializer=grpc__service_dot_schema__pb2.UnsubscribeRequest.FromString,
+                    response_serializer=grpc__service_dot_schema__pb2.UnsubscribeResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -393,8 +393,8 @@ class GatewayService(object):
             request_iterator,
             target,
             '/grpc_service.GatewayService/RouteAgentCalling',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.AgentMessage.FromString,
+            grpc__service_dot_schema__pb2.AgentMessage.SerializeToString,
+            grpc__service_dot_schema__pb2.AgentMessage.FromString,
             options,
             channel_credentials,
             insecure,
@@ -420,8 +420,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/RouteToolCalling',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.ToolResponse.FromString,
+            grpc__service_dot_schema__pb2.ToolRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.ToolResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -447,8 +447,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/RegisterAgent',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.AgentInfo.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterAgentResponse.FromString,
+            grpc__service_dot_schema__pb2.AgentInfo.SerializeToString,
+            grpc__service_dot_schema__pb2.RegisterAgentResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -474,8 +474,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/RegisterTool',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.ToolInfo.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterToolResponse.FromString,
+            grpc__service_dot_schema__pb2.ToolBoxInfo.SerializeToString,
+            grpc__service_dot_schema__pb2.RegisterToolResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -501,8 +501,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/DeregisterNode',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.DeregisterNodeRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.DeregisterNodeResponse.FromString,
+            grpc__service_dot_schema__pb2.DeregisterNodeRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.DeregisterNodeResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -528,8 +528,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/GetNodes',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.GetNodesRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.GetNodesResponse.FromString,
+            grpc__service_dot_schema__pb2.GetNodesRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.GetNodesResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -555,8 +555,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/Heartbeat',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.HeartbeatRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.HeartbeatResponse.FromString,
+            grpc__service_dot_schema__pb2.HeartbeatRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.HeartbeatResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -582,8 +582,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/UpdateNodeInfo',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateNodeInfoRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateNodeInfoResponse.FromString,
+            grpc__service_dot_schema__pb2.UpdateNodeInfoRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.UpdateNodeInfoResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -609,8 +609,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/SubscribeToUpdates',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.UpdateSubscriptionRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.NodeUpdate.FromString,
+            grpc__service_dot_schema__pb2.UpdateSubscriptionRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.NodeUpdate.FromString,
             options,
             channel_credentials,
             insecure,
@@ -636,8 +636,8 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/Unsubscribe',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.UnsubscribeRequest.SerializeToString,
-            atlink__aip_dot_grpc__service_dot_schema__pb2.UnsubscribeResponse.FromString,
+            grpc__service_dot_schema__pb2.UnsubscribeRequest.SerializeToString,
+            grpc__service_dot_schema__pb2.UnsubscribeResponse.FromString,
             options,
             channel_credentials,
             insecure,

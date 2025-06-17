@@ -1,21 +1,15 @@
 import asyncio
 import argparse
-from atlink_aip.module import Tool
+from atlink_aip.module import Tool, ToolBox
 
-
-async def calculate_sum(a: int, b: int) -> int:
-    """Adds two numbers and returns the sum."""
-    return int(a) + int(b)
 
 async def main(gateway_address):
     #create API tool
     siRNA_tool = Tool.create_api_tool(
-        address="localhost:50061",
         api_url="https://siRNA_tool_url",
         api_method="POST",
         api_timeout=100,
         name="小核酸siRNA效力预测",
-        tool_id="tool1",
         description="用于小核酸预测siRNA对给定mRNA序列的抑制效果的工具",
         arguments={
             "mRNA": "参数是一个列表，列表中的每个元素代表mRNA序列，将被分析以设计 siRNA",
@@ -23,32 +17,25 @@ async def main(gateway_address):
             "config": "配置参数对象，包含 top_n, no_func, off_target, toxicity, all_human 等选项"
         }
     )
-
-    await siRNA_tool.start()
-    await siRNA_tool.register_to_gateway(gateway_address)
-    print("API Tool registered")
-    await asyncio.sleep(1)
+    
+    toolbox = ToolBox(address="localhost:50061", toolbox_id="toolbox1", name="ToolBox1", tools=[siRNA_tool])
 
     #create Func tool
-    sum_tool = Tool.create_function_tool(
-        address="localhost:50062",
-        function=calculate_sum,
-        name="Sum",
-        tool_id="tool2",
-        description="A simple tool that adds two numbers"
-    )
+    @toolbox.tool(name="Sum")
+    async def calculate_sum(a: int, b: int) -> int:
+        """Adds two numbers and returns the sum."""
+        return int(a) + int(b)
 
-    await sum_tool.start()
-    await sum_tool.register_to_gateway(gateway_address)
-    print("Func Tool registered")
+    await toolbox.start()
+    await toolbox.register_to_gateway(gateway_address)
+    print("toolbox registered")
 
     try:
         while True:
             await asyncio.sleep(9999999)
     except asyncio.CancelledError:
         print("Stopping tools...")
-        await siRNA_tool.stop()
-        await sum_tool.stop()
+        await toolbox.stop()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
