@@ -2,4 +2,5 @@ grpcio
 grpcio-tools
 tinydb
 aiohttp
+aiohttp-sse-client
 colorlog
