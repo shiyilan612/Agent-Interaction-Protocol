@@ -2,18 +2,17 @@
 """
 Created on Thu Apr 24 09:44:01 2025
 
-@author: xmkang
+@author: xmkang & haixinwa
 """
 
 import asyncio
 import uuid
 import time
-import json
 from typing import Dict, List, Optional, Callable, Any, Union
 
-from ..grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolRequest, ToolResponse
+from ..grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolResponse
 from ..grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
-from ..grpc_service import AgentServiceStub, GatewayServiceStub, ToolServiceStub
+from ..grpc_service import AgentServiceStub, ToolServiceStub, GatewayServiceStub
 from ..module.client import AgentClient
 from ..module.server import AgentServer
 from ..module.client import ToolClient
@@ -448,42 +447,10 @@ class Agent:
 
         return results
 
-    def create_tool_request(self, 
-                            receiver_id: str, 
-                            session_id: str = None,
-                            tool_name: str = None,
-                            arguments: Dict[str, Any] = None) -> ToolRequest:
-        """
-        Create an AgentMessage object.
-        
-        Args:
-            receiver_id: ID of the tool to call.
-            session_id: Optional session ID (automatically generated if not provided)
-            tool_name: Tool name
-            arguments: Arguments for the tool call.
-            
-        Returns:
-            ToolRequest object
-        """
-        # Convert arguments to JSON string to support complex structures
-        arguments = json.dumps(arguments) if arguments else "{}"
-
-        # Create the requst
-        request = ToolRequest(
-            sender_id=self.agent_id,
-            receiver_id=receiver_id,
-            session_id=session_id or f"session_{uuid.uuid4().hex[:8]}",
-            tool_name=tool_name or "unknown",
-            arguments=arguments
-        )
-        
-        return request
-
     async def call_tool(self, 
-                        toolbox_id: str, 
-                        session_id: str = None,
+                        toolbox_id: str,
                         tool_name: str = None,
-                        arguments: Dict[str, Any] = None) -> ToolResponse:
+                        arguments: str = None) -> ToolResponse:
         """
         Call a tool with the given ID through gateway.
         
@@ -508,18 +475,15 @@ class Agent:
             # Create a new tool client and connect to the gateway
             tool_client = await ToolClient(self._gateway_address, GatewayServiceStub,"RouteToolCalling").start()
             self._tool_clients[toolbox_id] = tool_client
-                
-        # Create tool request
-        request = self.create_tool_request(
-                receiver_id=toolbox_id,
-                session_id=session_id or tool_client.session.session_id,
-                tool_name=tool_name,
-                arguments=arguments if arguments else {}
-            )
-        
+
         try:
             # Send the request and get the response
-            response = await tool_client.send_request(request)
+            response = await tool_client.send_request(
+                sender_id=self.agent_id,
+                receiver_id=toolbox_id,
+                tool_name=tool_name,
+                arguments=arguments
+            )
             return response
                 
         except TimeoutError:
