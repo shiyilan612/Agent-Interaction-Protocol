@@ -1,3 +1,4 @@
+import json
 import asyncio
 import logging
 import aiohttp
@@ -13,7 +14,7 @@ async def sse_reader(
         session: aiohttp.ClientSession,
         timeout_obj: aiohttp.ClientTimeout,
         endpoint_future: asyncio.Future,
-        read_queue: asyncio.Queue
+        pending_queue: dict
 ):
     """Read and handle events from the SSE stream."""
     try:
@@ -41,7 +42,12 @@ async def sse_reader(
                         endpoint_future.set_result(endpoint_url)
 
                 elif event.type == "message":
-                    await read_queue.put(event.data)
+                    response = json.loads(event.data)
+                    read_queue = pending_queue.get(response['id'])
+                    if read_queue:
+                        await read_queue.put(response)
+                    else:
+                        logger.error(f"Missed read queue with session id({response['id']})")
 
                 else:
                     logger.warning(f"Unknown SSE event: {event.type}")
@@ -51,8 +57,9 @@ async def sse_reader(
         if not endpoint_future.done():
             endpoint_future.set_exception(e)
     finally:
-        while not read_queue.empty():
-            read_queue.get_nowait()
+        for read_queue in pending_queue:
+            while not read_queue.empty():
+                read_queue.get_nowait()
 
 async def post_writer(
     session: aiohttp.ClientSession,

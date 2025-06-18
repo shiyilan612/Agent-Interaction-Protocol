@@ -43,7 +43,7 @@ class MCPToolProxy(ToolBox):
         )
 
         self.mcp_url = mcp_url
-        self.read_queue = asyncio.Queue()
+        self.pending_queue = {}
         self.write_queue = asyncio.Queue()
 
     async def _connect_to_mcp_server(self, headers=None, auth=None, timeout=300, sse_read_timeout=300):
@@ -51,7 +51,7 @@ class MCPToolProxy(ToolBox):
         timeout_obj = aiohttp.ClientTimeout(total=timeout, sock_read=sse_read_timeout)
         session = aiohttp.ClientSession(headers=headers, auth=auth, timeout=timeout_obj)
 
-        self.reader_task = asyncio.create_task(sse_reader(self.mcp_url, session, timeout_obj, endpoint_future, self.read_queue))
+        self.reader_task = asyncio.create_task(sse_reader(self.mcp_url, session, timeout_obj, endpoint_future, self.pending_queue))
         self.writer_task = asyncio.create_task(post_writer(session, endpoint_future, self.write_queue))
         self.mcp_session = session
         self.timeout = timeout
@@ -71,12 +71,31 @@ class MCPToolProxy(ToolBox):
         await self.mcp_session.close()
 
         # clear queue
-        while not self.read_queue.empty():
-            self.read_queue.get_nowait()
+        for read_queue in self.pending_queue:
+            while not read_queue.empty():
+                read_queue.get_nowait()
         while not self.write_queue.empty():
             self.write_queue.get_nowait()
 
-    async def _initialize_mcp(self) -> Any:
+    async def _invoke_mcp(self, json_content:dict, id:str, flag:str):
+        read_queue = asyncio.Queue()
+        self.pending_queue[id] = read_queue
+
+        await self.write_queue.put(json_content)
+
+        try:
+            response = await asyncio.wait_for(read_queue.get(), timeout=self.timeout)
+            return response
+        except asyncio.TimeoutError:
+            self._logger.error(f"[MCP] {flag} Failed: timeout error")
+            return None
+        except Exception as e:
+            self._logger.error(f"[MCP] {flag} Failed: {str(e)}")
+            return None
+        finally:
+            del self.pending_queue[id]  # 清理
+
+    async def _initialize_mcp(self, id) -> Any:
         json_content = {
             "method": "initialize",
             "params": {
@@ -88,45 +107,30 @@ class MCPToolProxy(ToolBox):
                 }
             },
             "jsonrpc": "2.0",
-            "id": 0
+            "id": id
         }
 
+        response = await self._invoke_mcp(json_content, id, flag="Initialize")
+        json_content = {
+            "method": "notifications/initialized",
+            "jsonrpc": "2.0"
+        }
         await self.write_queue.put(json_content)
-        try:
-            response = await asyncio.wait_for(self.read_queue.get(), timeout=self.timeout)
-            return json.loads(response)
-        except asyncio.TimeoutError:
-            self._logger.error("[MCP] Initializing Failed: timeout error")
-            return None
-        except Exception as e:
-            self._logger.error(f"[MCP] Initializing Failed: {str(e)}")
-            return None
-        finally:
-            json_content = {
-                "method": "notifications/initialized",
-                "jsonrpc": "2.0"
-            }
-            await self.write_queue.put(json_content)
 
-    async def _list_mcp_tools(self) -> dict | None:
+        return response
+
+    async def _list_mcp_tools(self, id) -> dict | None:
         json_content = {
             "method": "tools/list",
             "jsonrpc": "2.0",
-            "id": 0
+            "id": id
         }
 
-        await self.write_queue.put(json_content)
-        try:
-            response = await asyncio.wait_for(self.read_queue.get(), timeout=self.timeout)
-            return json.loads(response)
-        except asyncio.TimeoutError:
-            self._logger.error("[MCP] List mcp tools failed: timeout error")
-            return None
-        except Exception as e:
-            self._logger.error(f"[MCP] List mcp tools failed:: {str(e)}")
-            return None
+        response = await self._invoke_mcp(json_content, id, flag="List Tools")
 
-    async def _call_mcp_tool(self, name, arguments, id):
+        return response
+
+    async def _call_mcp_tool(self, name, arguments, id) -> dict | None:
         json_content = {
             "method": "tools/call",
             "params": {
@@ -137,16 +141,9 @@ class MCPToolProxy(ToolBox):
             "id": id
         }
 
-        await self.write_queue.put(json_content)
-        try:
-            response = await asyncio.wait_for(self.read_queue.get(), timeout=self.timeout)
-            return json.loads(response)
-        except asyncio.TimeoutError:
-            self._logger.error("[MCP] Call tool failed: timeout error")
-            return None
-        except Exception as e:
-            self._logger.error(f"[MCP] Call tool failed:: {str(e)}")
-            return None
+        response = await self._invoke_mcp(json_content, id, flag="Call Tool")
+
+        return response
 
     def _update_toolbox_info(self, tools_info:List=[]) -> None:
         """Update the toolbox information when tools change."""
@@ -184,8 +181,8 @@ class MCPToolProxy(ToolBox):
 
 
         try:
-            await self._connect_to_mcp_server()
-            await self._initialize_mcp()
+            # await self._connect_to_mcp_server()
+            # await self._initialize_mcp()
 
             mcp_resp = await self._call_mcp_tool(
                 name=request.tool_name,
@@ -220,8 +217,8 @@ class MCPToolProxy(ToolBox):
 
             return response
 
-        finally:
-            await self._close_mcp_connection()
+        # finally:
+            # await self._close_mcp_connection()
 
     async def start(self):
         # Start the tool server.
@@ -231,12 +228,13 @@ class MCPToolProxy(ToolBox):
         # Connect to MCP Server
         await self._connect_to_mcp_server()
 
-        resp = await self._initialize_mcp()
+        id = str(uuid.uuid4())
+        resp = await self._initialize_mcp(id)
         if resp:
             self.name = resp['result']['serverInfo']['name']
             self.description += f" MCP version: {resp['result']['protocolVersion']}"
 
-        resp = await self._list_mcp_tools()
+        resp = await self._list_mcp_tools(id)
         if resp:
             tools_info = list()
             for t in resp['result']['tools']:
@@ -249,7 +247,7 @@ class MCPToolProxy(ToolBox):
                 )
             self._update_toolbox_info(tools_info)
 
-        await self._close_mcp_connection()
+        # await self._close_mcp_connection()
 
         return self
 
