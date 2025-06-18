@@ -41,10 +41,3 @@ class ToolServer(ToolService):
                 code=grpc.StatusCode.INTERNAL,
                 details=f"Handling request failure: {str(e)}"
             )
-            
-    async def update_toolbox_info(self, new_toolbox_info: ToolBoxInfo) -> None:
-        """Update the tool info with the gateway"""
-        # Store the new info in the underlying service
-        self.toolbox_info = new_toolbox_info.to_grpc()
-        # The ToolService._check_toolbox_info_updates will detect the change
-        # and notify the gateway on the next update interval

@@ -195,3 +195,20 @@ class ToolService(ToolServiceServicer):
         except Exception as e:
             self._logger.error(f"<Tool>: Failed to deregister from Gateway at [{self._gateway_address}] - "
                                f"Exception: {str(e)}")
+            
+    async def update_toolbox_info(self, new_toolbox_info: pb2.ToolBoxInfo) -> None:
+        """Update the tool info with the gateway.
+        Args:
+            new_toolbox_info: New toolbox information to update
+        """
+        self.toolbox_info = new_toolbox_info
+        if self._gateway_address:
+            stub = self._connection_pool.get_stub(self._gateway_address)
+            
+            node_info = pb2.Peer()
+            node_info.toolbox_info.CopyFrom(new_toolbox_info)
+            
+            response = await stub.UpdateNodeInfo(pb2.UpdateNodeInfoRequest(node_info=node_info))
+            
+            self._logger.info(f"<Tool>: {'Updated' if response.success else 'Failed to update'} "
+                              f"toolbox info with Gateway at [{self._gateway_address}]")
