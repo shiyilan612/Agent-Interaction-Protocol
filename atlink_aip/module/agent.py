@@ -506,11 +506,7 @@ class Agent:
         # Create a new client if none exists
         if not tool_client:
             # Create a new tool client and connect to the gateway
-            tool_client = await ToolClient().start(
-                self._gateway_address,
-                GatewayServiceStub,
-                "RouteToolCalling"
-            )
+            tool_client = await ToolClient(self._gateway_address, GatewayServiceStub,"RouteToolCalling").start()
             self._tool_clients[toolbox_id] = tool_client
                 
         # Create tool request

@@ -270,17 +270,11 @@ class ToolInfo:
     def __init__(
         self,
         name: str = "",
-        domain: str = "",
-        input_mode: List[Mode] = None,
-        output_mode: List[Mode] = None,
         description: str = "",
         arguments: Dict[str, str] = None,
         version: str = ""
     ):
         self.name = name
-        self.domain = domain
-        self.input_mode = input_mode
-        self.output_mode = output_mode
         self.description = description
         self.arguments = arguments
         self.version = version
@@ -288,11 +282,8 @@ class ToolInfo:
     def to_grpc(self) -> pb2.ToolInfo:
         return pb2.ToolInfo(
             name=self.name,
-            domain=self.domain,
-            input_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.input_mode],
-            output_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.output_mode],
-            description=self.description,
             arguments=self.arguments,
+            description=self.description,
             version=self.version
         )
 
@@ -300,11 +291,8 @@ class ToolInfo:
     def from_grpc(cls, grpc_obj: pb2.ToolInfo) -> 'ToolInfo':
         return cls(
             name=grpc_obj.name,
-            domain=grpc_obj.domain,
-            input_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
-            output_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
-            description=grpc_obj.description,
             arguments=dict(grpc_obj.arguments),
+            description=grpc_obj.description,
             version=grpc_obj.version
         )
         
@@ -590,9 +578,6 @@ class UnsubscribeResponse:
             message = grpc_obj.message
         )
 
-
-
-
 class AgentMessage:
     def __init__(
         self,
@@ -730,3 +715,18 @@ class ToolResponse:
             self.content = list()
 
         self.content.append(item)
+
+    def __str__(self):
+         buffer = []
+         buffer.append(f"[ToolResponse] ")
+         buffer.append(f"sender_id:{self.sender_id}; ")
+         buffer.append(f"receiver_id:{self.receiver_id}; ")
+         buffer.append(f"session_id:{self.session_id}; ")
+         buffer.append(f"is_error:{self.is_error}; ")
+         buffer.append(f"error_message:{self.error_message}; ")
+         content_str = "content:"
+         for c in self.content:
+             content_str += f"{c.__dict__}"
+         buffer.append(content_str)
+
+         return "".join(buffer)
