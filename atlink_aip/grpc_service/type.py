@@ -466,21 +466,18 @@ class HeartbeatResponse:
     
     
 class UpdateNodeInfoRequest:
-    def __init__(self, sender_id: str, peer: Peer):
-        self.sender_id = sender_id
-        self.peer = peer
+    def __init__(self, node_info: Peer):
+        self.node_info = node_info
         
     def to_grpc(self) -> pb2.UpdateNodeInfoRequest:
         return pb2.UpdateNodeInfoRequest(
-            sender_id = self.sender_id,
-            peer = self.peer.to_grpc()
+            node_info = self.node_info.to_grpc()
         )
 
     @classmethod
     def from_grpc(cls, grpc_obj: pb2.UpdateNodeInfoRequest) -> 'UpdateNodeInfoRequest':
         return cls(
-            sender_id = grpc_obj.sender_id,
-            peer = Peer.from_grpc(grpc_obj.peer)
+            node_info = Peer.from_grpc(grpc_obj.node_info)
         )
     
 

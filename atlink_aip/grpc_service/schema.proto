@@ -158,8 +158,7 @@ message HeartbeatResponse {
 
 /* 节点更新 */
 message UpdateNodeInfoRequest {
-    string sender_id = 1;
-    Peer peer = 2;
+    Peer node_info = 1;
 }
 
 message UpdateNodeInfoResponse {

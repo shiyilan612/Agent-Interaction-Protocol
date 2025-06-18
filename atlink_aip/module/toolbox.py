@@ -93,11 +93,11 @@ class ToolBox:
 
         self.warn_on_duplicate_tools = warn_on_duplicate_tools
         
-        # Update tools information
-        self._update_toolbox_info()
-        
         # Server instance
         self._server = None
+        
+        # Initialize toolbox information
+        self._update_toolbox_info()
         
         # Gateway connection
         self._gateway_address = None
@@ -123,6 +123,14 @@ class ToolBox:
         """Update the toolbox information when tools change."""
         self.tools_info = self._collect_tools_info()
         self.toolbox_info = self._create_toolbox_info()
+        if self._server:
+            updata_task = asyncio.create_task(self._server.update_toolbox_info(self.toolbox_info.to_grpc()))
+            def handle_update_exception(task: asyncio.Task):
+                try:
+                    task.result()
+                except Exception as e:
+                    self._logger.error(f"Failed to update ToolBox information with Gateway - Exception: {str(e)}")
+            updata_task.add_done_callback(handle_update_exception)
     
     async def update_tool_info(self, 
                               name=None, 
@@ -140,10 +148,6 @@ class ToolBox:
         else:
             tool.update_tool_info(name, description, domain, version, input_mode, output_mode, arguments)
             self._update_toolbox_info()
-            
-            # Pass to server
-            if self._server:
-                await self._server.update_toolbox_info(self.toolbox_info)
         
         return self
     
