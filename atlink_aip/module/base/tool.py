@@ -72,7 +72,7 @@ class Tool:
         """Create a ToolInfo object for registration with the gateway."""
         tool_info = ToolInfo(
             name=self.name,
-            arguments=self.arguments,
+            arguments=str(self.arguments),
             description=self.description,
             version=self.version
         )

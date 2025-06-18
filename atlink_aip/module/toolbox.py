@@ -71,15 +71,27 @@ class ToolBox:
         
         # Gateway connection
         self._gateway_address = None
-        
-    def _collect_tools_info(self) -> List[ToolInfo]:
-        """Collect and return a list of ToolInfo objects for each tool contained in the ToolBox."""
-        tools_info = [tool.tool_info for tool in self._tools.values()]
-        return tools_info
-    
-    def _create_toolbox_info(self) -> ToolBoxInfo:
-        """Create a ToolBoxInfo object for registration with the gateway."""
-        toolbox_info = ToolBoxInfo(
+
+    async def _update_tool_info(self,
+                               name=None,
+                               description=None,
+                               version=None,
+                               arguments=None):
+        """Update tool information"""
+
+        tool = self._tools.get(self.name)
+        if not tool:
+            self._logger.error(f"<ToolBox>: Tool [{self.name}] not found in toolbox.")
+        else:
+            await tool.update_tool_info(name, description, arguments, version)
+            self._update_toolbox_info()
+
+        return self
+
+    def _update_toolbox_info(self) -> None:
+        """Update the toolbox information when tools change."""
+        self.tools_info = [tool.tool_info for tool in self._tools.values()]
+        self.toolbox_info = ToolBoxInfo(
             toolbox_id=self.toolbox_id,
             address=self.address,
             name=self.name,
@@ -87,12 +99,6 @@ class ToolBox:
             description=self.description,
             tools=self.tools_info
         )
-        return toolbox_info
-    
-    def _update_toolbox_info(self) -> None:
-        """Update the toolbox information when tools change."""
-        self.tools_info = self._collect_tools_info()
-        self.toolbox_info = self._create_toolbox_info()
 
         if self._server:
             updata_task = asyncio.create_task(self._server.update_toolbox_info(self.toolbox_info.to_grpc()))
@@ -203,19 +209,3 @@ class ToolBox:
             return fn
 
         return decorator
-
-    async def update_tool_info(self,
-                               name=None,
-                               description=None,
-                               version=None,
-                               arguments=None):
-        """Update tool information with the gateway"""
-
-        tool = self._tools.get(self.name)
-        if not tool:
-            self._logger.error(f"<ToolBox>: Tool [{self.name}] not found in toolbox.")
-        else:
-            await tool.update_tool_info(name, description, arguments, version)
-            self._update_toolbox_info()
-
-        return self

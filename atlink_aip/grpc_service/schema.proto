@@ -55,7 +55,7 @@ message RegisterAgentResponse { // Agent注册响应信息
 message ToolInfo {  // Tool注册信息
   string name = 1;
   string description = 2;
-  map<string, string> arguments = 3;
+  string arguments = 3;
   string version = 4;
 }
 

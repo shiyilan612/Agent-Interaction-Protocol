@@ -271,7 +271,7 @@ class ToolInfo:
         self,
         name: str = "",
         description: str = "",
-        arguments: Dict[str, str] = None,
+        arguments: str = "{}",
         version: str = ""
     ):
         self.name = name
@@ -282,8 +282,8 @@ class ToolInfo:
     def to_grpc(self) -> pb2.ToolInfo:
         return pb2.ToolInfo(
             name=self.name,
-            arguments=self.arguments,
             description=self.description,
+            arguments=self.arguments,
             version=self.version
         )
 
@@ -291,7 +291,7 @@ class ToolInfo:
     def from_grpc(cls, grpc_obj: pb2.ToolInfo) -> 'ToolInfo':
         return cls(
             name=grpc_obj.name,
-            arguments=dict(grpc_obj.arguments),
+            arguments=grpc_obj.arguments,
             description=grpc_obj.description,
             version=grpc_obj.version
         )
