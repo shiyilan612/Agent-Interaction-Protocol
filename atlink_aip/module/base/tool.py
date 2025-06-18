@@ -9,7 +9,7 @@ import asyncio
 import inspect
 import functools
 from typing import Dict, Callable, Any
-from ..grpc_service.type import ToolInfo, ToolRequest, ToolResponse, Mode, ContentItem
+from atlink_aip.grpc_service.type import ToolInfo, ToolRequest, ToolResponse, Mode, ContentItem
 
 
 class Tool:

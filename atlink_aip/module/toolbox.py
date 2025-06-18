@@ -7,9 +7,9 @@ Created on Tue Jun 17 9:36:12 2025
 
 import uuid
 from typing import Callable, List
-from . import Tool
+from .base import Tool
+from .server import ToolServer
 from ..grpc_service.type import ToolInfo, ToolBoxInfo, ToolRequest, ToolResponse
-from ..module.server import ToolServer
 from ..logger import LoggerManager
 
 
