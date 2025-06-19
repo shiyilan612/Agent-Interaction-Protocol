@@ -1,12 +1,9 @@
 import json
 import asyncio
-import logging
 import aiohttp
 from aiohttp_sse_client import client as sse_client
 from urllib.parse import urlparse, urljoin
-
-
-logger = logging.getLogger(__name__)
+from logging import Logger
 
 
 async def sse_reader(
@@ -14,7 +11,8 @@ async def sse_reader(
         session: aiohttp.ClientSession,
         timeout_obj: aiohttp.ClientTimeout,
         endpoint_future: asyncio.Future,
-        pending_queue: dict
+        pending_queue: dict,
+        logger: Logger
 ):
     """Read and handle events from the SSE stream."""
     try:
@@ -65,7 +63,8 @@ async def post_writer(
     session: aiohttp.ClientSession,
     endpoint_future: asyncio.Future,
     write_queue: asyncio.Queue,
-    timeout: float = 5
+    logger: Logger,
+    timeout: float = 30
 ):
     """Send a message to the endpoint URL"""
     try:

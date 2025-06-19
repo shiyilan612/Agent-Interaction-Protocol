@@ -51,8 +51,12 @@ class MCPToolProxy(ToolBox):
         timeout_obj = aiohttp.ClientTimeout(total=timeout, sock_read=sse_read_timeout)
         session = aiohttp.ClientSession(headers=headers, auth=auth, timeout=timeout_obj)
 
-        self.reader_task = asyncio.create_task(sse_reader(self.mcp_url, session, timeout_obj, endpoint_future, self.pending_queue))
-        self.writer_task = asyncio.create_task(post_writer(session, endpoint_future, self.write_queue))
+        self.reader_task = asyncio.create_task(
+            sse_reader(self.mcp_url, session, timeout_obj, endpoint_future, self.pending_queue, self._logger)
+        )
+        self.writer_task = asyncio.create_task(
+            post_writer(session, endpoint_future, self.write_queue, self._logger)
+        )
         self.mcp_session = session
         self.timeout = timeout
 
@@ -181,8 +185,8 @@ class MCPToolProxy(ToolBox):
 
 
         try:
-            # await self._connect_to_mcp_server()
-            # await self._initialize_mcp()
+            await self._connect_to_mcp_server()
+            await self._initialize_mcp(id=request.session_id)
 
             mcp_resp = await self._call_mcp_tool(
                 name=request.tool_name,
@@ -217,8 +221,8 @@ class MCPToolProxy(ToolBox):
 
             return response
 
-        # finally:
-            # await self._close_mcp_connection()
+        finally:
+            await self._close_mcp_connection()
 
     async def start(self):
         # Start the tool server.
@@ -247,7 +251,7 @@ class MCPToolProxy(ToolBox):
                 )
             self._update_toolbox_info(tools_info)
 
-        # await self._close_mcp_connection()
+        await self._close_mcp_connection()
 
         return self
 
