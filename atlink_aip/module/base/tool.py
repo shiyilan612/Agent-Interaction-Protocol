@@ -9,8 +9,18 @@ import asyncio
 import inspect
 import functools
 from typing import Dict, Callable, Any
+from pydantic import BaseModel, Field, create_model
 from atlink_aip.grpc_service.type import ToolInfo, ToolRequest, ToolResponse, Mode, ContentItem
 
+class InvalidSignature(Exception):
+    pass
+
+class FuncMetadata:
+    def __init__(self, arg_model):
+        self.arg_model = arg_model
+
+class ArgModelBase(BaseModel):
+    pass
 
 class Tool:
     """
@@ -43,19 +53,22 @@ class Tool:
             description = f"Tool based on function {function.__name__}"
 
         # If custom argument descriptions are not provided, generate them from the signature
-        sig = inspect.signature(function)  # Extract function signature to get arguments
-        if not arguments:
-            arguments = {
-                param_name: str(param.annotation) if param.annotation != inspect.Parameter.empty else "any"
-                for param_name, param in sig.parameters.items()
-            }
-        else:
-            # Ensure all function parameters are included in the arguments dictionary
-            for param_name in sig.parameters:
-                if param_name not in arguments:
-                    param = sig.parameters[param_name]
-                    arguments[param_name] = str(
-                        param.annotation) if param.annotation != inspect.Parameter.empty else "any"
+        # sig = inspect.signature(function)  # Extract function signature to get arguments
+        # if not arguments:
+        #     arguments = {
+        #         param_name: str(param.annotation) if param.annotation != inspect.Parameter.empty else "any"
+        #         for param_name, param in sig.parameters.items()
+        #     }
+        # else:
+        #     # Ensure all function parameters are included in the arguments dictionary
+        #     for param_name in sig.parameters:
+        #         if param_name not in arguments:
+        #             param = sig.parameters[param_name]
+        #             arguments[param_name] = str(
+        #                 param.annotation) if param.annotation != inspect.Parameter.empty else "any"
+        print("function:", function)
+        meta = self.func_metadata(function)
+        arguments = meta.arg_model.schema()["properties"]
 
         self.name = name
         self.arguments = arguments
@@ -67,7 +80,26 @@ class Tool:
 
         # Create tool info
         self.tool_info = self._create_tool_info()
-        
+
+    def func_metadata(self, func: Callable[..., Any]) -> FuncMetadata:
+        sig = inspect.signature(func)
+        params = sig.parameters
+        dynamic_pydantic_model_params = {}
+        for param in params.values():
+            if param.name.startswith("_"):
+                raise InvalidSignature(f"Parameter {param.name} of {func.__name__} cannot start with '_'")
+            annotation = param.annotation if param.annotation is not inspect.Parameter.empty else Any
+
+            field_info = Field(default=param.default if param.default is not inspect.Parameter.empty else ...)
+            dynamic_pydantic_model_params[param.name] = (annotation, field_info)
+
+        arguments_model = create_model(
+            f"{func.__name__}Arguments",
+            **dynamic_pydantic_model_params,
+            __base__=ArgModelBase,
+        )
+        return FuncMetadata(arg_model=arguments_model)    
+    
     def _create_tool_info(self) -> ToolInfo:
         """Create a ToolInfo object for registration with the gateway."""
         tool_info = ToolInfo(
