@@ -177,7 +177,7 @@ class AgentService(AgentServiceServicer):
 
             await self._update_peers(response.peers) # update peers
 
-            self._logger.info(f"<Agent>:  {'Registered' if response else 'Failed to register'}"
+            self._logger.info(f"<Agent>: {'Registered' if response else 'Failed to register'}"
                               f" to Gateway at [{gateway_address}]")
 
             self._heartbeat_task = asyncio.create_task(self._send_heartbeat())
