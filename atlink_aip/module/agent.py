@@ -125,7 +125,12 @@ class Agent:
         if not self._server:
             raise RuntimeError("Agent server not started. Call start() first.")
             
-        await self._server.connect_to_gateway(gateway_address)
+        try:
+            self._logger.info(f"<Agent>: Connecting to gateway at [{gateway_address}]...")
+            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=5)
+        except asyncio.TimeoutError:
+            self._logger.error(f"<Agent>: Failed to register to Gateway at [{gateway_address}] - Timeout")
+            raise
         
         return self
     

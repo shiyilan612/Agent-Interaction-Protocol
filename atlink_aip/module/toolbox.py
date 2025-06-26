@@ -145,8 +145,16 @@ class ToolBox:
     async def register_to_gateway(self, gateway_address: str):
         """Register to the gateway service."""
         self._gateway_address = gateway_address
-        if self._server:
-            await self._server.connect_to_gateway(gateway_address)
+        if not self._server:
+            raise RuntimeError("ToolBox server not started. Call start() first.")
+            
+        try:
+            self._logger.info(f"<ToolBox>: Connecting to gateway at [{gateway_address}]...")
+            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=5)
+        except asyncio.TimeoutError:
+            self._logger.error(f"<ToolBox>: Failed to register to Gateway at [{gateway_address}] - Timeout")
+            raise
+            
         return self
     
     def add_tool(
