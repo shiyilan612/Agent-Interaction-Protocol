@@ -33,7 +33,8 @@ class Agent:
                  version: str = "1.0.0",
                  input_mode: List[Mode] = [Mode.TEXT],
                  output_mode: List[Mode] = [Mode.TEXT],
-                 skills: List[AgentSkill] = None):
+                 skills: List[AgentSkill] = None,
+                 register_timeout: float = 5.0):
         """
         Initialize a new Agent.
         
@@ -47,6 +48,7 @@ class Agent:
             input_mode: Expected input modality (TEXT, IMAGE, etc.)
             output_mode: Output modality provided by the agent
             skills: List of skills this agent possesses
+            register_timeout: Timeout for registering to the gateway service (default is 5 seconds)
         """
         self.address = address
         self.agent_id = agent_id if agent_id else f"agent_{str(uuid.uuid4())}"
@@ -74,6 +76,8 @@ class Agent:
         # Task management
         self._tasks: Dict[str, TaskInfo] = {}
         self._task_counter = 0
+        
+        self.register_timeout = register_timeout
         
         self._logger_mgr = LoggerManager()
         self._logger = self._logger_mgr.get_logger(self.agent_id)
@@ -127,7 +131,7 @@ class Agent:
             
         try:
             self._logger.info(f"<Agent>: Connecting to gateway at [{gateway_address}]...")
-            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=5)
+            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=self.register_timeout)
         except asyncio.TimeoutError:
             self._logger.error(f"<Agent>: Failed to register to Gateway at [{gateway_address}] - Timeout")
             raise

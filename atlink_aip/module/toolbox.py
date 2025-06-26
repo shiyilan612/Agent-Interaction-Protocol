@@ -30,7 +30,8 @@ class ToolBox:
                  domain: str = "default",
                  description: str = "",
                  warn_on_duplicate_tools: bool = True,
-                 tools: List[Tool] | None = None):
+                 tools: List[Tool] | None = None,
+                 register_timeout: float = 5.0):
         """
         Initialize a new ToolBox.
         
@@ -42,6 +43,7 @@ class ToolBox:
             description: Detailed description of the toolbox
             warn_on_duplicate_tools: Whether to log warnings for duplicate tool
             tools: Optional list of initial tools to register in this toolbox
+            register_timeout: Timeout for registering to the gateway service (default is 5 seconds)
         """
         self.address = address
         self.toolbox_id = toolbox_id if toolbox_id else f"toolbox_{str(uuid.uuid4())}"
@@ -71,6 +73,8 @@ class ToolBox:
         
         # Gateway connection
         self._gateway_address = None
+        
+        self.register_timeout = register_timeout
 
     async def _update_tool_info(self,
                                name=None,
@@ -150,7 +154,7 @@ class ToolBox:
             
         try:
             self._logger.info(f"<ToolBox>: Connecting to gateway at [{gateway_address}]...")
-            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=5)
+            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=self.register_timeout)
         except asyncio.TimeoutError:
             self._logger.error(f"<ToolBox>: Failed to register to Gateway at [{gateway_address}] - Timeout")
             raise
