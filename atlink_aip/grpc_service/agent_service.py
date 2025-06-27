@@ -111,6 +111,7 @@ class AgentService(AgentServiceServicer):
         if not self._gateway_address:
             return
         stub = self._connection_pool.get_stub(self._gateway_address)
+        heartbeat_failed_count = 0
 
         while True:
             try:
@@ -119,20 +120,28 @@ class AgentService(AgentServiceServicer):
                 # Send heartbeat
                 response = await stub.Heartbeat(request)
                 if not response.success:
-                    self._logger.debug(f"<{self.agent_id}>: Heartbeat failed: {response.message}")
+                    heartbeat_failed_count += 1
+                    self._logger.error(f"<{self.agent_id}>: Heartbeat failed: {response.message}")
                 else:
+                    heartbeat_failed_count = 0
                     self._logger.debug(f"<{self.agent_id}>: Heartbeat sent successfully")
 
                 # Wait for the next interval
                 await asyncio.sleep(self.heartbeat_interval)
 
             except grpc.aio.AioRpcError as e:
+                heartbeat_failed_count += 1
                 self._logger.error(f"<{self.agent_id}>: Heartbeat RPC error: {e.details()}")
                 await asyncio.sleep(self.heartbeat_interval)
             except Exception as e:
+                heartbeat_failed_count += 1
                 self._logger.error(f"<{self.agent_id}>: Heartbeat error: {str(e)}")
                 await asyncio.sleep(self.heartbeat_interval)
 
+            if heartbeat_failed_count >= 3:
+                self._logger.error(f"<{self.agent_id}>: Heartbeat failed 3 times, disconnecting from gateway")
+                await self.disconnect_from_gateway()
+                break
 
 
     async def start(self):
