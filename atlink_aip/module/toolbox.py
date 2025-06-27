@@ -30,8 +30,7 @@ class ToolBox:
                  domain: str = "default",
                  description: str = "",
                  warn_on_duplicate_tools: bool = True,
-                 tools: List[Tool] | None = None,
-                 register_timeout: float = 5.0):
+                 tools: List[Tool] | None = None):
         """
         Initialize a new ToolBox.
         
@@ -43,7 +42,6 @@ class ToolBox:
             description: Detailed description of the toolbox
             warn_on_duplicate_tools: Whether to log warnings for duplicate tool
             tools: Optional list of initial tools to register in this toolbox
-            register_timeout: Timeout for registering to the gateway service (default is 5 seconds)
         """
         self.address = address
         self.toolbox_id = toolbox_id if toolbox_id else f"toolbox_{str(uuid.uuid4())}"
@@ -73,8 +71,6 @@ class ToolBox:
         
         # Gateway connection
         self._gateway_address = None
-        
-        self.register_timeout = register_timeout
 
     async def _update_tool_info(self,
                                name=None,
@@ -146,15 +142,20 @@ class ToolBox:
         # Stop loggers
         self._logger_mgr.stop()
 
-    async def register_to_gateway(self, gateway_address: str):
-        """Register to the gateway service."""
+    async def register_to_gateway(self, gateway_address: str, timeout: float = 5.0):
+        """Register to the gateway service.
+        
+        Args:
+            gateway_address: Address of the gateway service (e.g., "localhost:50052")
+            timeout: Timeout for registering to the gateway service (default is 5 seconds)
+        """
         self._gateway_address = gateway_address
         if not self._server:
             raise RuntimeError("ToolBox server not started. Call start() first.")
             
         try:
             self._logger.info(f"<ToolBox>: Connecting to gateway at [{gateway_address}]...")
-            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=self.register_timeout)
+            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=timeout)
         except asyncio.TimeoutError:
             self._logger.error(f"<ToolBox>: Failed to register to Gateway at [{gateway_address}] - Timeout")
             raise
