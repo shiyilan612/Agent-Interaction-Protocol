@@ -23,7 +23,8 @@ It defines communication mechanisms for multi-agent collaboration, multi-tool in
 ```
 git clone https://github.com/ScienceOne-AI/Agent-Interaction-Protocol.git
 cd ./Agent-Interaction-Protocol
-pip install -e .
+python -m grpc_tools.protoc -I=. --python_out=. --grpc_python_out=. atlink_aip/grpc_service/schema.proto
+pip install .
 ```
 
 ## 🚀 Quick Start Examples
