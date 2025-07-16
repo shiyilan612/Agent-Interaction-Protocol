@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Callable, Any, Union
 
 from ..grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolResponse
 from ..grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
-from ..grpc_service import AgentServiceStub, ToolServiceStub, GatewayServiceStub
+from ..grpc_service import GatewayServiceStub
 from ..module.client import AgentClient
 from ..module.server import AgentServer
 from ..module.client import ToolClient
@@ -252,15 +252,15 @@ class Agent:
         
         return content_items
 
-    def create_agent_message(self, 
-                           receiver_id: str, 
-                           content: Union[str, bytes, List[Union[str, bytes]]],
-                           session_id: str = None,
-                           task_info: TaskInfo = None,
-                           content_mode: Optional[Union[Mode, List[Mode]]] = None,
-                           session_status: SessionStatus = SessionStatus.START_QUEST,
-                           message_id: str = None,
-                           reply_to_message_id: str = None) -> AgentMessage:
+    def create_agent_message(self,
+                             receiver_id: str,
+                             content: Union[str, bytes, List[Union[str, bytes]]],
+                             session_id: str = None,
+                             task_info: TaskInfo = None,
+                             content_mode: Optional[Union[Mode, List[Mode]]] = None,
+                             session_status: SessionStatus = SessionStatus.START_QUEST,
+                             message_id: str = None,
+                             reply_to_message_id: str = None) -> AgentMessage:
         """
         Create an AgentMessage object.
         
@@ -302,15 +302,32 @@ class Agent:
         
         return message
 
-    async def create_agent_client(
-            self, receiver_id,
-            stub=GatewayServiceStub,
-            stream_calling="RouteAgentCalling"
-    ):
-        client = AgentClient()
-        session_id = await client.start(self._gateway_address, stub, stream_calling)
-        self._agent_clients[(session_id, receiver_id)] = client
-        return session_id
+    async def create_agent_client(self,
+                                  receiver_id,
+                                  stub=GatewayServiceStub,
+                                  agent_calling="RouteAgentCalling",
+                                  serve_address=None) -> Optional[str]:
+        if not serve_address:
+            if not self._gateway_address:
+                self._logger.error("<Agent>: agent client connects to Gateway by default, but the gateway address is None")
+                raise
+            serve_address = self._gateway_address
+
+        try:
+            client = AgentClient(serve_address, stub, agent_calling)
+            session_id = await client.start()
+
+            if (session_id, receiver_id) in self._agent_clients:
+                self._logger.warning(f"<Agent>: Failed to create agent client since the "
+                                     f"(session id: {session_id} | receiver_id:{receiver_id}) is already connected")
+                await client.close()
+                return None
+
+            self._agent_clients[(session_id, receiver_id)] = client
+            return session_id
+        except Exception as e:
+            self._logger.error(f"<Agent>: Failed to create agent client - Exception: {e}")
+            return None
 
     async def submit_inquiry(self,
                              session_id: str,
@@ -334,13 +351,12 @@ class Agent:
         Returns:
             The AgentClient instance associated with this session
         """
-        if not self._gateway_address:
-            raise RuntimeError("Not connected to gateway")
         
         # Check if we already have an active client for this receiver
         client = self._agent_clients.get((session_id, receiver_id))
         if not client:
-            raise RuntimeError(f"Not existed client (session id: {session_id} | receiver_id: {receiver_id})")
+            self._logger.error(f"<Agent>: Not existed agent client (session id: {session_id} | receiver_id: {receiver_id})")
+            raise
 
         # Determine session status based on client existence and provided status
         if session_status is None:
@@ -379,9 +395,10 @@ class Agent:
         """
         client = self._agent_clients.get((session_id, receiver_id))
         if not client:
-            raise RuntimeError(f"Not existed client (session id: {session_id} | receiver_id: {receiver_id})")
+            self._logger.error(f"Not existed agent client (session id: {session_id} | receiver_id: {receiver_id})")
+            raise
 
-        response = await client.response_queue.get()
+        response = await client.get_response()
         if response.session_status == SessionStatus.STOP_RESPONSE:
             await self.close_agent_client(session_id, receiver_id)
 
@@ -457,6 +474,30 @@ class Agent:
 
         return results
 
+    async def create_tool_client(self,
+                                 receiver_id,
+                                 stub=GatewayServiceStub,
+                                 tool_calling="RouteToolCalling",
+                                 serve_address=None):
+        if not serve_address:
+            if not self._gateway_address:
+                self._logger.error("<Agent>: Tool client connects to Gateway by default, but the gateway address is None")
+                raise
+            serve_address = self._gateway_address
+
+        try:
+            client = ToolClient(serve_address, stub, tool_calling)
+            await client.start()
+
+            if receiver_id in self._tool_clients:
+                self._logger.warning(f"<Agent>: Failed to create tool client since the "
+                                     f"(receiver_id:{receiver_id}) is already connected")
+
+            self._tool_clients[receiver_id] = client
+
+        except Exception as e:
+            self._logger.error(f"<Agent>: Failed to create tool client - Exception: {e}")
+
     async def call_tool(self, 
                         toolbox_id: str,
                         tool_name: str = None,
@@ -472,23 +513,15 @@ class Agent:
         Returns:
             ToolResponse: The response from the tool.
         """
-        
-        if not self._gateway_address:
-            raise RuntimeError("Not connected to gateway")
-            
-            
-        # Check if we already have an tool client for this receiver tool
-        tool_client = self._tool_clients.get(toolbox_id)
-        
-        # Create a new client if none exists
-        if not tool_client:
-            # Create a new tool client and connect to the gateway
-            tool_client = await ToolClient(self._gateway_address, GatewayServiceStub,"RouteToolCalling").start()
-            self._tool_clients[toolbox_id] = tool_client
+        # Check if we already have a tool client for this receiver tool
+        client = self._tool_clients.get(toolbox_id)
+        if not client:
+            self._logger.error(f"<Agent>: Not existed tool client (toolbox_id: {toolbox_id})")
+            raise
 
         try:
             # Send the request and get the response
-            response = await tool_client.send_request(
+            response = await client.send_request(
                 sender_id=self.agent_id,
                 receiver_id=toolbox_id,
                 tool_name=tool_name,
