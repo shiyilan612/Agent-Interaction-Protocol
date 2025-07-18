@@ -19,16 +19,19 @@ class Gateway:
     """
 
     def __init__(self,
-                 address: str,
+                 host_address: str,
+                 service_address: str = None,
                  gateway_id: str = None):
         """
         Initialize a new Gateway.
 
         Args:
-            address: Address where this gateway will be hosted
+            host_address: Address where this gateway will be hosted
+            service_address: Address of the service provided by the gateway to the outside
             gateway_id: Unique identifier for gateway
         """
-        self.address = address
+        self.host_address = host_address
+        self.service_address = service_address if service_address else host_address
         self.gateway_id = gateway_id if gateway_id else f"gateway_{str(uuid.uuid4())}"
 
         # Create the gateway service
@@ -39,7 +42,7 @@ class Gateway:
 
     async def start(self):
         """Start the gateway server."""
-        self._host = GatewayHost(self.address, self.gateway_id)
+        self._host = GatewayHost(self.host_address, self.gateway_id)
 
         # Start the server
         await self._host.start()

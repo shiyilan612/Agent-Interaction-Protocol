@@ -20,7 +20,8 @@ from ..grpc_service.type import ToolInfo, ToolBoxInfo, ToolRequest, ToolResponse
 class MCPToolProxy(ToolBox):
     def __init__(self,
                  mcp_url: str,
-                 address: str,
+                 host_address: str,
+                 service_address: str = None,
                  toolbox_id: str = None,
                  domain: str = "default",
                  description: str = ""):
@@ -29,13 +30,15 @@ class MCPToolProxy(ToolBox):
 
         Args:
             mcp_url: Address of mcp server
-            address: Address where this proxy will be hosted (e.g., "localhost:50051")
+            host_address: Address where this proxy will be hosted (e.g., "localhost:50051")
+            service_address: Address of the service provided by the proxy to the outside
             toolbox_id: Unique identifier for this MCPTool (defaults to UUID if not provided)
             domain: MCPTool group/domain
             description: Detailed description of the MCPTool
         """
         super().__init__(
-            address=address,
+            host_address=host_address,
+            service_address=service_address,
             name="",
             toolbox_id=toolbox_id if toolbox_id else f"mcptool_{str(uuid.uuid4())}",
             domain=domain,
@@ -154,7 +157,7 @@ class MCPToolProxy(ToolBox):
         self.tools_info = tools_info
         self.toolbox_info = ToolBoxInfo(
             toolbox_id=self.toolbox_id,
-            address=self.address,
+            address=self.service_address,
             name=self.name,
             domain=self.domain,
             description=self.description,
