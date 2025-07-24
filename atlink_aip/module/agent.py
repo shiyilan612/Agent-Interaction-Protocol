@@ -25,7 +25,8 @@ class Agent:
     """
     
     def __init__(self, 
-                 address: str,
+                 host_address: str,
+                 service_address: str = None,
                  agent_id: str = None,
                  name: str = None,
                  domain: str = "default",
@@ -38,7 +39,8 @@ class Agent:
         Initialize a new Agent.
         
         Args:
-            address: Address where this agent will be hosted (e.g., "localhost:50051")
+            host_address: Address where this agent will be hosted (e.g., "localhost:50051")
+            service_address: Address of the service provided by the agent to the outside
             agent_id: Unique identifier for this agent (defaults to UUID if not provided)
             name: Human-readable name for this agent
             domain: Agent group/domain 
@@ -48,7 +50,8 @@ class Agent:
             output_mode: Output modality provided by the agent
             skills: List of skills this agent possesses
         """
-        self.address = address
+        self.host_address = host_address
+        self.service_address = service_address if service_address else host_address
         self.agent_id = agent_id if agent_id else f"agent_{str(uuid.uuid4())}"
         self.name = name if name else self.agent_id
         self.domain = domain
@@ -82,7 +85,7 @@ class Agent:
         """Create an AgentInfo object for registration with the gateway."""
         agent_info = AgentInfo(
             agent_id=self.agent_id,
-            address=self.address,
+            address=self.service_address,
             name=self.name,
             domain=self.domain,
             input_mode=self.input_mode,

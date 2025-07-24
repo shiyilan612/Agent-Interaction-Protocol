@@ -24,7 +24,8 @@ class ToolBox:
     """
     
     def __init__(self, 
-                 address: str,
+                 host_address: str,
+                 service_address: str = None,
                  name: str = None,
                  toolbox_id: str = None,
                  domain: str = "default",
@@ -35,7 +36,8 @@ class ToolBox:
         Initialize a new ToolBox.
         
         Args:
-            address: Address where this toolbox will be hosted (e.g., "localhost:50051")
+            host_address: Address where this toolbox will be hosted (e.g., "localhost:50051")
+            service_address: Address of the service provided by the toolbox to the outside
             toolbox_id: Unique identifier for this toolbox (defaults to UUID if not provided)
             name: Human-readable name for this toolbox
             domain: toolbox group/domain 
@@ -43,7 +45,8 @@ class ToolBox:
             warn_on_duplicate_tools: Whether to log warnings for duplicate tool
             tools: Optional list of initial tools to register in this toolbox
         """
-        self.address = address
+        self.host_address = host_address
+        self.service_address = service_address if service_address else host_address
         self.toolbox_id = toolbox_id if toolbox_id else f"toolbox_{str(uuid.uuid4())}"
         self.name = name if name else self.toolbox_id
         self.domain = domain
@@ -93,7 +96,7 @@ class ToolBox:
         self.tools_info = [tool.tool_info for tool in self._tools.values()]
         self.toolbox_info = ToolBoxInfo(
             toolbox_id=self.toolbox_id,
-            address=self.address,
+            address=self.service_address,
             name=self.name,
             domain=self.domain,
             description=self.description,
