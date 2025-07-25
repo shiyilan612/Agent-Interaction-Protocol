@@ -14,6 +14,7 @@ from .utils import ConnectionPool
 from ..logger import LoggerManager
 
 # Import the generated proto modules
+from .type import ToolBoxInfo, AgentInfo
 from .schema_pb2_grpc import AgentServiceServicer, add_AgentServiceServicer_to_server
 from .schema_pb2_grpc import GatewayServiceStub
 from . import schema_pb2 as pb2
@@ -47,7 +48,7 @@ class AgentService(AgentServiceServicer):
         self.address = self.agent_info.address
 
         # init peers dict
-        self._peers: Dict[str, Union[pb2.AgentInfo, pb2.ToolBoxInfo]] = {}
+        self._peers: Dict[str, Union[AgentInfo, ToolBoxInfo]] = {}
 
         # init gateway address
         self._gateway_address = None
@@ -76,10 +77,10 @@ class AgentService(AgentServiceServicer):
             set_field = peer.WhichOneof("info_type")
             if set_field == "agent_info":
                 agent_info = peer.agent_info
-                self._peers.update({agent_info.agent_id: agent_info})
+                self._peers.update({agent_info.agent_id: AgentInfo.from_grpc(agent_info)})
             elif set_field == "toolbox_info":
                 toolbox_info = peer.toolbox_info
-                self._peers.update({toolbox_info.toolbox_id: toolbox_info})
+                self._peers.update({toolbox_info.toolbox_id: ToolBoxInfo.from_grpc(toolbox_info)})
             else:
                 raise ValueError
 
