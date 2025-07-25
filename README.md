@@ -5,7 +5,7 @@
   </p>
 
 ## 📋 Introduction
-**AIP** (Agent Interaction Protocol) is a distributed agent interaction protocol developed by the "AI + Science" Research Department of the Institute of Automation, Chinese Academy of Sciences.
+**AIP** (Agent Interaction Protocol) is a distributed agent interaction protocol developed by the Institute of Automation, Chinese Academy of Sciences.
 
 It defines communication mechanisms for multi-agent collaboration, multi-tool invocation, and multi-modal data access in scientific scenarios. AIP also provides functional components to support the rapid development of large-scale agent-based scientific systems.
 
@@ -16,11 +16,13 @@ It defines communication mechanisms for multi-agent collaboration, multi-tool in
 
 - **Unified Interface**: Supports both agent-to-agent bidirectional streaming interaction and agent-to-tool/data access.
 
+- **MCP Compatible**: Defines an MCP proxy node that enables direct integration of MCP services into systems built on AIP, allowing unified management and invocation through a gateway without modifying the protocol format.
+
 ### Framework
 <p align="left"><img src="asset/arch.png" width = "600" height = "300"></p>
 
 ## 📦 Installation
-```
+```bash
 git clone https://github.com/ScienceOne-AI/Agent-Interaction-Protocol.git
 cd ./Agent-Interaction-Protocol
 pip install .
@@ -28,190 +30,175 @@ pip install .
 
 ## 🚀 Quick Start Examples
 
-### 1. Run Gateway
-```python
-# run_gateway.py
-import asyncio
-from atlink_aip.module import Gateway
+Some simple examples are in the directory `./example `. You can follow these steps to conduct the test.
 
-async def main():
-    # Set gateway address, ID
-    gateway = Gateway(address="localhost:50050", gateway_id="test_gw")
-    # Start gateway
-    await gateway.start()
-    print("Gateway started. Press Ctrl+C to exit.")
-
-    try:
-        while True:
-            await asyncio.sleep(9999999)
-    except asyncio.CancelledError:
-        print("Stopping gateway...")
-        await gateway.stop()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+### 1. Run gateway
+```bash
+python run_gateway.py
 ```
 
-### 2. Register Tool
 ```python
-import asyncio
-from atlink_aip.module import Tool
+# run_gateway.py
+from atlink_aip.module import Gateway
 
-# Custom tool function
+# set address, ID of the gateway
+gateway = Gateway(host_address=args.host_address, gateway_id=args.gateway_id)
+
+# start gateway
+await gateway.start()
+```
+
+### 2. Run and register Tool
+```bash
+python run_and_register_tool.py
+```
+
+```python
+# run_and_register_tool.py
+from atlink_aip.module import ToolBox
+
+# set address, name and ID of the toolbox
+toolbox = ToolBox(host_address=args.host_address, name=args.toolbox_name, toolbox_id=args.toolbox_id)
+
+# add a tool
+@toolbox.tool()
 async def calculate_sum(a: int, b: int) -> int:
     """Adds two numbers and returns the sum."""
     return int(a) + int(b)
 
-async def main(gateway_address):
-    # Set tool address, ID and other parameters to create a function-type tool
-    sum_tool = Tool.create_function_tool(
-        address="localhost:50062",
-        function=calculate_sum,
-        name="Sum",
-        tool_id="tool1",
-        description="A simple tool that adds two numbers"
-    )
-    # Start tool
-    await sum_tool.start()
-    # Register tool to gateway
-    await sum_tool.register_to_gateway(gateway_address)
-    print("Func Tool registered")
-
-    try:
-        while True:
-            await asyncio.sleep(9999999)
-    except asyncio.CancelledError:
-        print("Stopping tools...")
-        await sum_tool.stop()
-
-if __name__ == "__main__":
-    asyncio.get_event_loop().set_debug(True)
-    asyncio.run(main(gateway_address="localhost:50050"))
+# register toolbox to gateway
+await toolbox.start()
+await toolbox.register_to_gateway(args.gateway_address)
 ```
 
-### 3. Register Agent
+### 3. Run and register agent
+```bash
+pip install requests # install `requests` to call LLM API
+python run_and_register_agent.py --llm_url "api url of a LLM" --api_key "api key of a LLM" --model "LLM name"
+```
+
 ```python
-import asyncio
-import argparse
-from functools import partial
-from atlink_aip.grpc_service.type import AgentMessage, SessionStatus, Mode
+# run_and_register_agent.py
+from atlink_aip.grpc_service.type import Mode
 from atlink_aip.module import Agent
 
-# Custom agent request processing function
-async def delayed_process_request_func(message: AgentMessage, delay: float) -> AgentMessage:
-    print(f"\033[33m[RESPONSE] <{message.receiver_id}> --> "
-          f"<{message.sender_id}>\033[0m: {message.content[0]._text}")
-    await asyncio.sleep(delay)
-    text = f"Response to: {message.content[0]._text}"
-    return text
+# set address, name and ID of the agent
+agent = Agent(
+    agent_id=args.agent_id,
+    host_address=args.host_address,
+    name=args.agent_name,
+    description=f"LLM Mode:{args.model}"
+)
 
-async def read_input(prompt: str) -> str:
-    return await asyncio.to_thread(input, prompt)
+# register agent to gateway
+await agent.start()
+await agent.register_to_gateway(args.gateway_address)
+asyncio.create_task(process_message(agent, args))
+```
 
-async def interactive_chat_loop(agent: Agent):
+```python
+# call LLM API to process AIP message
+async def process_message(agent, args):
+    async def call_LLM(url: str, api_key: str, model: str, text: str) -> str:
+        headers = {
+            "Authorization": api_key,
+            "Content-Type": "application/json"
+        }
+        system_prompt = "You are an agent that communicates using the AIP protocol."
+        user_prompt = f"{text}"
+        params = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "stream": False
+        }
+        try:
+            response = requests.post(url, json=params, headers=headers)
+            response.raise_for_status()
+            result = response.json()
+            output = result['choices'][0]['message']['content']
+            return output
+
+        except Exception as e:
+            return f"{str(e)}"
+
     try:
         while True:
-            target_id = (await read_input("\nEnter target agent id (or 'exit'): ")).strip()
-            if target_id.lower() == "exit":
-                exit(0)
-            received_id = target_id
-            # Create session
-            session_id = await agent.create_agent_client(received_id)
-            text = await read_input("Enter message to send: ")
-            text = text.strip()
-            # Send request message
-            await agent.submit_inquiry(
-                session_id=session_id,
-                receiver_id=received_id,
-                content=text
-            )
-            print(f"\033[31m[SEND] <{agent.agent_id}> --> <{received_id}>\033[0m: {text}")
-            # Send request to end session
-            await agent.submit_inquiry(
-                session_id=session_id,
-                receiver_id=received_id,
-                content="Finish Talk",
-                session_status=SessionStatus.STOP_QUEST
-            )
-
-            result = ""
-            while True:
-                # Receive feedback message
-                response = await agent.receive_feedback(session_id, received_id)
-                print(f"\033[32m[SUCCESS] Response received from <{response.sender_id}>\033[0m")
-                if response.session_status == SessionStatus.STOP_RESPONSE:
-                    break
-                for content_item in response.content:
-                    if content_item._text:
-                        result += content_item._text
-                await asyncio.sleep(1)
-            print(f"\033[34m[RESPONSE]\033[0m:{result}")
-
-    except asyncio.CancelledError:
-        print("\n\033[34mInput loop cancelled. Exiting...\033[0m")
-    except KeyboardInterrupt:
-        print("\n\033[34mInterrupted by user. Exiting...\033[0m")
-
-# Request message processing logic
-async def process_server_message(agent):
-    while True:
-        # Receive request
-        request = await agent.receive_inquiry()
-        session_id = request.session_id
-        # Set request processing
-        handlers = [
-            partial(delayed_process_request_func, message=request, delay=2)
-        ]
-        # Request processing
-        results = await agent.invoke_session_handlers(session_id, handlers)
-        for text in results:
-            # Send processing result
-            await  agent.submit_feedback(
-                session_id=request.session_id,
-                receiver_id=request.sender_id,
-                request_session_status=request.session_status,
-                content=text,
-                content_mode=[Mode.TEXT]
-            )
-
-async def main(agent_id: str, agent_address: str, gateway_address: str):
-    # Set agent address, ID and other parameters to create agent
-    agent = Agent(
-        agent_id=agent_id,
-        address=agent_address,
-        name=f"Agent {agent_id}",
-        description="Chatbot agent"
-    )
-    # Satrt agent
-    await agent.start()
-    # Register agent to gateway
-    await agent.register_to_gateway(gateway_address)
-    # Configure agent's request message processing logic
-    server_task = asyncio.create_task(process_server_message(agent))
-
-    # Session task example
-    client_task = asyncio.create_task(interactive_chat_loop(agent))
-    try:
-        await asyncio.gather(server_task, client_task)
-    finally:
+            request = await agent.receive_inquiry()
+            session_id = request.session_id
+            handlers = [
+                partial(
+                    call_LLM,
+                    url=args.llm_url,
+                    api_key=args.api_key,
+                    model=args.model,
+                    text=request.content[0]._text
+                )
+            ]
+            # After receiving the message, the agent will invoke the ‘call_LLM’ method.
+            results = await agent.invoke_session_handlers(session_id, handlers)
+            for text in results:
+                await  agent.submit_feedback(
+                    session_id=request.session_id,
+                    receiver_id=request.sender_id,
+                    request_session_status=request.session_status,
+                    content=text,
+                    content_mode=[Mode.TEXT]
+                )
+    except:
         await agent.stop()
-        print(f"\033[35mAgent {agent_id} stopped.\033[0m")
+```
 
+### 4. Access the tool and the agent through a client agent 
+```bash
+python run_client_agent.py
+```
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--agent_id", type=str, required=True, help="Create an agent ID")
-    parser.add_argument("--agent_address", type=str, default="localhost:50051")
-    parser.add_argument("--gateway_address", default="localhost:50050")
+```python
+# run_client_agent.py
 
-    args = parser.parse_args()
+# invoke the example tool through the gateway.
+toolbox_id = "example_tool"
+await agent.create_tool_client(receiver_id=toolbox_id)  # create a tool client.
+response = await agent.call_tool(
+    toolbox_id="example_tool",
+    tool_name="calculate_sum",
+    arguments=json.dumps({"a": 111, "b": 333})
+)
+await agent.close_tool_client(toolbox_id=toolbox_id) # close the Tool Client
+print(f"Results from example_tool: {response}")
 
-    asyncio.run(main(agent_id=args.agent_id, agent_address=args.agent_address, gateway_address=args.gateway_address))
+# invoke the example agent through the gateway.
+agent_id = "example_agent"
+session_id = await agent.create_agent_client(agent_id) # create an agent client. The agent client does not need to be manually closed.
+await agent.submit_inquiry(
+    session_id=session_id,
+    receiver_id=agent_id,
+    content="Who are you?"
+)
+await agent.submit_inquiry(
+    session_id=session_id,
+    receiver_id=agent_id,
+    content="GoodBye!",
+    session_status=SessionStatus.STOP_QUEST # If you need to end this communication, you should set the ·SessionStatus· to ·STOP_QUEST·.
+)
 
+while True:
+    response = await agent.receive_feedback(session_id, receiver_id=agent_id)
+    result = ""
+    for content_item in response.content:
+        if content_item._text:
+            result += content_item._text
+    print(f"Response received from <{response.sender_id}>: {result}")
+
+    # If the ·SessionStatus· in the received message is ·STOP_RESPONSE·, then this message is the last one of this communication.
+    if response.session_status == SessionStatus.STOP_RESPONSE:
+        break
 ```
 
 ## 🛠️ Real-World Examples
-Check out the [`examples/`](./examples) directory for real-world examples
 
 🔖 **Case**: Apply AIP to small nucleic acid siRNA efficacy analysis
 
@@ -219,5 +206,6 @@ Check out the [`examples/`](./examples) directory for real-world examples
 
 
 ## ⏳ To Do
+- [ ] AIP will support authentication for secure connections
 - [ ] AIP will support Nodes of scientific data resource
-- [ ] AIP will support rapid construction of dynamic workflows
+

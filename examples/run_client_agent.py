@@ -4,6 +4,7 @@ import asyncio
 from atlink_aip.module import Agent
 from atlink_aip.grpc_service.type import AgentInfo, ToolBoxInfo, SessionStatus
 
+
 async def main(args):
     agent = Agent(
         agent_id=args.agent_id,
@@ -15,7 +16,7 @@ async def main(args):
     await agent.start()
     await agent.register_to_gateway(args.gateway_address)
 
-    # To obtain the node information in the gateway, it can list all accessible tools and agents.
+    # to obtain the node information in the gateway, it can list all accessible tools and agents.
     await agent.update_peers()
     gateway_peers = await agent.get_nodes()
     for peer in gateway_peers.values():
@@ -37,7 +38,7 @@ async def main(args):
             print(f"description: {peer.description}")
         print("")
 
-    # the test invokes the tool through the gateway.
+    # invoke the example tool through the gateway.
     toolbox_id = "example_tool"
     await agent.create_tool_client(receiver_id=toolbox_id)
     response = await agent.call_tool(
@@ -49,7 +50,7 @@ async def main(args):
     print(f"Results from example_tool: {response}")
     print("")
 
-    # the test invokes the other agent through the gateway.
+    # invoke the example agent through the gateway.
     agent_id = "example_agent"
     session_id = await agent.create_agent_client(agent_id)
     await agent.submit_inquiry(

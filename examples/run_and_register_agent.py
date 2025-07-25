@@ -54,11 +54,12 @@ async def process_message(agent, args):
                     content=text,
                     content_mode=[Mode.TEXT]
                 )
-    except asyncio.CancelledError:
+    except:
         await agent.stop()
 
 
 async def main(args):
+    # init agent
     agent = Agent(
         agent_id=args.agent_id,
         host_address=args.host_address,
@@ -66,11 +67,12 @@ async def main(args):
         description=f"LLM Mode:{args.model}"
     )
 
+    # register agent to gateway
     await agent.start()
     await agent.register_to_gateway(args.gateway_address)
-
+    asyncio.create_task(process_message(agent, args))
+    
     try:
-        asyncio.create_task(process_message(agent, args))
         await asyncio.sleep(float('inf'))
     except asyncio.CancelledError:
         await agent.stop()
