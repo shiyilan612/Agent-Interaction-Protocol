@@ -5,7 +5,7 @@ import warnings
 
 from atlink_aip.grpc_service import schema_pb2 as atlink__aip_dot_grpc__service_dot_schema__pb2
 
-GRPC_GENERATED_VERSION = '1.71.0'
+GRPC_GENERATED_VERSION = '1.73.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -204,7 +204,7 @@ class GatewayServiceStub(object):
                 _registered_method=True)
         self.RegisterTool = channel.unary_unary(
                 '/grpc_service.GatewayService/RegisterTool',
-                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolInfo.SerializeToString,
+                request_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolBoxInfo.SerializeToString,
                 response_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterToolResponse.FromString,
                 _registered_method=True)
         self.DeregisterNode = channel.unary_unary(
@@ -333,7 +333,7 @@ def add_GatewayServiceServicer_to_server(servicer, server):
             ),
             'RegisterTool': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterTool,
-                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolInfo.FromString,
+                    request_deserializer=atlink__aip_dot_grpc__service_dot_schema__pb2.ToolBoxInfo.FromString,
                     response_serializer=atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterToolResponse.SerializeToString,
             ),
             'DeregisterNode': grpc.unary_unary_rpc_method_handler(
@@ -474,7 +474,7 @@ class GatewayService(object):
             request,
             target,
             '/grpc_service.GatewayService/RegisterTool',
-            atlink__aip_dot_grpc__service_dot_schema__pb2.ToolInfo.SerializeToString,
+            atlink__aip_dot_grpc__service_dot_schema__pb2.ToolBoxInfo.SerializeToString,
             atlink__aip_dot_grpc__service_dot_schema__pb2.RegisterToolResponse.FromString,
             options,
             channel_credentials,

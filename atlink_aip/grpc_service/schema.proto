@@ -26,7 +26,7 @@ message ContentItem {
 message Peer {
   oneof info_type {
     AgentInfo agent_info = 1;
-    ToolInfo tool_info = 2;
+    ToolBoxInfo toolbox_info = 2;
   }
 }
 
@@ -43,7 +43,7 @@ message AgentInfo {  // Agent注册信息
     string skill_id = 1;
     string capability = 2;
   }
-  repeated AgentSkill skills= 8;
+  repeated AgentSkill skills = 8;
   string version = 9;
 }
 
@@ -53,15 +53,19 @@ message RegisterAgentResponse { // Agent注册响应信息
 }
 
 message ToolInfo {  // Tool注册信息
-  string tool_id = 1;
+  string name = 1;
+  string description = 2;
+  string arguments = 3;
+  string version = 4;
+}
+
+message ToolBoxInfo {  // ToolBox注册信息
+  string toolbox_id = 1;
   string address = 2;
   string name = 3;
-  string domain = 4;  //可对Tool分组
-  repeated Mode input_mode = 5;
-  repeated Mode output_mode = 6;
-  string description = 7;
-  map<string, string> arguments = 8;
-  string version = 9;
+  string domain = 4;  //可对ToolBox分组
+  string description = 5;
+  repeated ToolInfo tools = 6;
 }
 
 message RegisterToolResponse { // Tool注册响应信息
@@ -151,8 +155,7 @@ message HeartbeatResponse {
 
 /* 节点更新 */
 message UpdateNodeInfoRequest {
-    string sender_id = 1;
-    Peer peer = 2;
+    Peer node_info = 1;
 }
 
 message UpdateNodeInfoResponse {
@@ -217,7 +220,7 @@ service GatewayService {
   rpc RegisterAgent(AgentInfo) returns (RegisterAgentResponse) {};
 
   // Tool注册
-  rpc RegisterTool(ToolInfo) returns (RegisterToolResponse) {};
+  rpc RegisterTool(ToolBoxInfo) returns (RegisterToolResponse) {};
 
   // Node取消注册
   rpc DeregisterNode(DeregisterNodeRequest) returns (DeregisterNodeResponse) {};

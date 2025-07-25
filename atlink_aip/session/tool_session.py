@@ -29,7 +29,7 @@ class ToolClientSession:
     async def activate(self):
         _time = str(time.strftime('%Y%m%d_%H%M%S', time.localtime()))
         _uuid = str(uuid.uuid4())
-        session_id = f"tool_session_{_uuid}_{_time}"
+        session_id = f"tool_{_uuid}_{_time}"
         self.session_id = session_id
         self.active_session = asyncio.Future()
         self._running = True

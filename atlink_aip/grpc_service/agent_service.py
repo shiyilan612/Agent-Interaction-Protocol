@@ -14,6 +14,7 @@ from .utils import ConnectionPool
 from ..logger import LoggerManager
 
 # Import the generated proto modules
+from .type import ToolBoxInfo, AgentInfo
 from .schema_pb2_grpc import AgentServiceServicer, add_AgentServiceServicer_to_server
 from .schema_pb2_grpc import GatewayServiceStub
 from . import schema_pb2 as pb2
@@ -47,7 +48,7 @@ class AgentService(AgentServiceServicer):
         self.address = self.agent_info.address
 
         # init peers dict
-        self._peers: Dict[str, Union[pb2.AgentInfo, pb2.ToolInfo]] = {}
+        self._peers: Dict[str, Union[AgentInfo, ToolBoxInfo]] = {}
 
         # init gateway address
         self._gateway_address = None
@@ -76,10 +77,10 @@ class AgentService(AgentServiceServicer):
             set_field = peer.WhichOneof("info_type")
             if set_field == "agent_info":
                 agent_info = peer.agent_info
-                self._peers.update({agent_info.agent_id: agent_info})
-            elif set_field == "tool_info":
-                tool_info = peer.tool_info
-                self._peers.update({tool_info.tool_id: tool_info})
+                self._peers.update({agent_info.agent_id: AgentInfo.from_grpc(agent_info)})
+            elif set_field == "toolbox_info":
+                toolbox_info = peer.toolbox_info
+                self._peers.update({toolbox_info.toolbox_id: ToolBoxInfo.from_grpc(toolbox_info)})
             else:
                 raise ValueError
 
@@ -111,6 +112,7 @@ class AgentService(AgentServiceServicer):
         if not self._gateway_address:
             return
         stub = self._connection_pool.get_stub(self._gateway_address)
+        heartbeat_failed_count = 0
 
         while True:
             try:
@@ -119,20 +121,28 @@ class AgentService(AgentServiceServicer):
                 # Send heartbeat
                 response = await stub.Heartbeat(request)
                 if not response.success:
-                    self._logger.debug(f"<{self.agent_id}>: Heartbeat failed: {response.message}")
+                    heartbeat_failed_count += 1
+                    self._logger.error(f"<{self.agent_id}>: Heartbeat failed: {response.message}")
                 else:
+                    heartbeat_failed_count = 0
                     self._logger.debug(f"<{self.agent_id}>: Heartbeat sent successfully")
 
                 # Wait for the next interval
                 await asyncio.sleep(self.heartbeat_interval)
 
             except grpc.aio.AioRpcError as e:
+                heartbeat_failed_count += 1
                 self._logger.error(f"<{self.agent_id}>: Heartbeat RPC error: {e.details()}")
                 await asyncio.sleep(self.heartbeat_interval)
             except Exception as e:
+                heartbeat_failed_count += 1
                 self._logger.error(f"<{self.agent_id}>: Heartbeat error: {str(e)}")
                 await asyncio.sleep(self.heartbeat_interval)
 
+            if heartbeat_failed_count >= 3:
+                self._logger.error(f"<{self.agent_id}>: Heartbeat failed 3 times, disconnecting from gateway")
+                await self.disconnect_from_gateway()
+                break
 
 
     async def start(self):
@@ -177,7 +187,7 @@ class AgentService(AgentServiceServicer):
 
             await self._update_peers(response.peers) # update peers
 
-            self._logger.info(f"<Agent>:  {'Registered' if response else 'Failed to register'}"
+            self._logger.info(f"<Agent>: {'Registered' if response else 'Failed to register'}"
                               f" to Gateway at [{gateway_address}]")
 
             self._heartbeat_task = asyncio.create_task(self._send_heartbeat())

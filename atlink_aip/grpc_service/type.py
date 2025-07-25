@@ -170,14 +170,14 @@ class ContentItem:
 class Peer:
     def __init__(self):
         self._agent_info: Optional[AgentInfo] = None
-        self._tool_info: Optional[ToolInfo] = None
+        self._toolbox_info: Optional[ToolBoxInfo] = None
 
     def to_grpc(self) -> pb2.Peer:
         grpc_peer = pb2.Peer()
         if self._agent_info is not None:
             grpc_peer.agent_info.CopyFrom(self._agent_info.to_grpc())
-        elif self._tool_info is not None:
-            grpc_peer.tool_info.CopyFrom(self._tool_info.to_grpc())
+        elif self._toolbox_info is not None:
+            grpc_peer.toolbox_info.CopyFrom(self._toolbox_info.to_grpc())
         return grpc_peer
 
     @classmethod
@@ -186,8 +186,8 @@ class Peer:
         which = grpc_peer.WhichOneof("info_type")
         if which == "agent_info":
             peer.agent_info = AgentInfo.from_grpc(grpc_peer.agent_info)
-        elif which == "tool_info":
-            peer.tool_info = ToolInfo.from_grpc(grpc_peer.tool_info)
+        elif which == "toolbox_info":
+            peer.toolbox_info = ToolBoxInfo.from_grpc(grpc_peer.toolbox_info)
         return peer
 
 
@@ -269,34 +269,19 @@ class RegisterAgentResponse:
 class ToolInfo:
     def __init__(
         self,
-        tool_id: str = "",
-        address: str = "",
         name: str = "",
-        domain: str = "",
-        input_mode: List[Mode] = None,
-        output_mode: List[Mode] = None,
         description: str = "",
-        arguments: Dict[str, str] = None,
+        arguments: str = "{}",
         version: str = ""
     ):
-        self.tool_id = tool_id
-        self.address = address
         self.name = name
-        self.domain = domain
-        self.input_mode = input_mode
-        self.output_mode = output_mode
         self.description = description
         self.arguments = arguments
         self.version = version
 
     def to_grpc(self) -> pb2.ToolInfo:
         return pb2.ToolInfo(
-            tool_id=self.tool_id,
-            address=self.address,
             name=self.name,
-            domain=self.domain,
-            input_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.input_mode],
-            output_mode=[convert_enum(_mode, pb2.Mode) for _mode in self.output_mode],
             description=self.description,
             arguments=self.arguments,
             version=self.version
@@ -305,15 +290,49 @@ class ToolInfo:
     @classmethod
     def from_grpc(cls, grpc_obj: pb2.ToolInfo) -> 'ToolInfo':
         return cls(
-            tool_id=grpc_obj.tool_id,
+            name=grpc_obj.name,
+            arguments=grpc_obj.arguments,
+            description=grpc_obj.description,
+            version=grpc_obj.version
+        )
+        
+
+class ToolBoxInfo:
+    def __init__(
+        self,
+        toolbox_id: str = "",
+        address: str = "",
+        name: str = "",
+        domain: str = "",
+        description: str = "",
+        tools: List[ToolInfo] = list()
+    ):
+        self.toolbox_id = toolbox_id
+        self.address = address
+        self.name = name
+        self.domain = domain
+        self.description = description
+        self.tools = tools
+
+    def to_grpc(self) -> pb2.ToolBoxInfo:
+        return pb2.ToolBoxInfo(
+            toolbox_id=self.toolbox_id,
+            address=self.address,
+            name=self.name,
+            domain=self.domain,
+            description=self.description,
+            tools=[tool.to_grpc() for tool in self.tools]
+        )
+
+    @classmethod
+    def from_grpc(cls, grpc_obj: pb2.ToolBoxInfo) -> 'ToolBoxInfo':
+        return cls(
+            toolbox_id=grpc_obj.toolbox_id,
             address=grpc_obj.address,
             name=grpc_obj.name,
             domain=grpc_obj.domain,
-            input_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
-            output_mode=[restore_enum(_mode, Mode) for _mode in grpc_obj.input_mode],
             description=grpc_obj.description,
-            arguments=dict(grpc_obj.arguments),
-            version=grpc_obj.version
+            tools=[ToolInfo.from_grpc(tool) for tool in grpc_obj.tools]
         )
 
 
@@ -435,21 +454,18 @@ class HeartbeatResponse:
     
     
 class UpdateNodeInfoRequest:
-    def __init__(self, sender_id: str, peer: Peer):
-        self.sender_id = sender_id
-        self.peer = peer
+    def __init__(self, node_info: Peer):
+        self.node_info = node_info
         
     def to_grpc(self) -> pb2.UpdateNodeInfoRequest:
         return pb2.UpdateNodeInfoRequest(
-            sender_id = self.sender_id,
-            peer = self.peer.to_grpc()
+            node_info = self.node_info.to_grpc()
         )
 
     @classmethod
     def from_grpc(cls, grpc_obj: pb2.UpdateNodeInfoRequest) -> 'UpdateNodeInfoRequest':
         return cls(
-            sender_id = grpc_obj.sender_id,
-            peer = Peer.from_grpc(grpc_obj.peer)
+            node_info = Peer.from_grpc(grpc_obj.node_info)
         )
     
 
@@ -558,9 +574,6 @@ class UnsubscribeResponse:
             success = grpc_obj.success,
             message = grpc_obj.message
         )
-
-
-
 
 class AgentMessage:
     def __init__(
@@ -699,3 +712,18 @@ class ToolResponse:
             self.content = list()
 
         self.content.append(item)
+
+    def __str__(self):
+         buffer = []
+         buffer.append(f"[ToolResponse] ")
+         buffer.append(f"sender_id:{self.sender_id}; ")
+         buffer.append(f"receiver_id:{self.receiver_id}; ")
+         buffer.append(f"session_id:{self.session_id}; ")
+         buffer.append(f"is_error:{self.is_error}; ")
+         buffer.append(f"error_message:{self.error_message}; ")
+         content_str = "content:"
+         for c in self.content:
+             content_str += f"{c.__dict__}"
+         buffer.append(content_str)
+
+         return "".join(buffer)

@@ -8,7 +8,7 @@ Created on Thu Apr 24 16:00:41 2025
 import uuid
 from typing import Dict, List, Union
 
-from ..grpc_service.type import AgentInfo, ToolInfo
+from ..grpc_service.type import AgentInfo, ToolBoxInfo
 from ..module.host import GatewayHost
 from ..logger import LoggerManager
 
@@ -19,16 +19,19 @@ class Gateway:
     """
 
     def __init__(self,
-                 address: str,
+                 host_address: str,
+                 service_address: str = None,
                  gateway_id: str = None):
         """
         Initialize a new Gateway.
 
         Args:
-            address: Address where this gateway will be hosted
+            host_address: Address where this gateway will be hosted
+            service_address: Address of the service provided by the gateway to the outside
             gateway_id: Unique identifier for gateway
         """
-        self.address = address
+        self.host_address = host_address
+        self.service_address = service_address if service_address else host_address
         self.gateway_id = gateway_id if gateway_id else f"gateway_{str(uuid.uuid4())}"
 
         # Create the gateway service
@@ -39,7 +42,7 @@ class Gateway:
 
     async def start(self):
         """Start the gateway server."""
-        self._host = GatewayHost(self.address, self.gateway_id)
+        self._host = GatewayHost(self.host_address, self.gateway_id)
 
         # Start the server
         await self._host.start()
@@ -62,7 +65,7 @@ class Gateway:
         # This is a placeholder for the actual implementation
         pass
 
-    async def get_registered_nodes(self) -> Dict[str, Union[AgentInfo, ToolInfo]]:
+    async def get_registered_nodes(self) -> Dict[str, Union[AgentInfo, ToolBoxInfo]]:
         """
         Get all registered nodes (agents and tools).
 
@@ -92,15 +95,15 @@ class Gateway:
         agents_info = await self._host.get_agents_info()
         return agents_info
 
-    async def get_registered_tools(self) -> Dict[str, ToolInfo]:
+    async def get_registered_tools(self) -> Dict[str, ToolBoxInfo]:
         """
-        Get all registered tools.
+        Get all registered toolboxes.
 
         Returns:
-            Dict of tool_id -> tool_info
+            Dict of toolbox_id -> toolbox_info
         """
         if not self._host:
             return {}
 
-        tools_info = await self._host.get_tools_info()
-        return tools_info
+        toolboxes_info = await self._host.get_tools_info()
+        return toolboxes_info

@@ -2,18 +2,17 @@
 """
 Created on Thu Apr 24 09:44:01 2025
 
-@author: xmkang
+@author: xmkang & haixinwa
 """
 
 import asyncio
 import uuid
 import time
-import json
 from typing import Dict, List, Optional, Callable, Any, Union
 
-from ..grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolRequest, ToolResponse
+from ..grpc_service.type import AgentInfo, TaskInfo, AgentMessage, ToolResponse
 from ..grpc_service.type import AgentSkill, SessionStatus, TaskStatus, Mode, ContentItem
-from ..grpc_service import AgentServiceStub, GatewayServiceStub, ToolServiceStub
+from ..grpc_service import GatewayServiceStub
 from ..module.client import AgentClient
 from ..module.server import AgentServer
 from ..module.client import ToolClient
@@ -26,7 +25,8 @@ class Agent:
     """
     
     def __init__(self, 
-                 address: str,
+                 host_address: str,
+                 service_address: str = None,
                  agent_id: str = None,
                  name: str = None,
                  domain: str = "default",
@@ -39,7 +39,8 @@ class Agent:
         Initialize a new Agent.
         
         Args:
-            address: Address where this agent will be hosted (e.g., "localhost:50051")
+            host_address: Address where this agent will be hosted (e.g., "localhost:50051")
+            service_address: Address of the service provided by the agent to the outside
             agent_id: Unique identifier for this agent (defaults to UUID if not provided)
             name: Human-readable name for this agent
             domain: Agent group/domain 
@@ -49,7 +50,8 @@ class Agent:
             output_mode: Output modality provided by the agent
             skills: List of skills this agent possesses
         """
-        self.address = address
+        self.host_address = host_address
+        self.service_address = service_address if service_address else host_address
         self.agent_id = agent_id if agent_id else f"agent_{str(uuid.uuid4())}"
         self.name = name if name else self.agent_id
         self.domain = domain
@@ -83,7 +85,7 @@ class Agent:
         """Create an AgentInfo object for registration with the gateway."""
         agent_info = AgentInfo(
             agent_id=self.agent_id,
-            address=self.address,
+            address=self.service_address,
             name=self.name,
             domain=self.domain,
             input_mode=self.input_mode,
@@ -106,8 +108,8 @@ class Agent:
         for (session_id, receiver_id) in list(self._agent_clients.keys()):
             await self.close_agent_client(session_id, receiver_id)
             
-        for tool_id in list(self._tool_clients.keys()):
-            await self.close_tool_client(tool_id)
+        for toolbox_id in list(self._tool_clients.keys()):
+            await self.close_tool_client(toolbox_id)
         
         # Stop the server
         if self._server:
@@ -120,13 +122,23 @@ class Agent:
         # Stop loggers
         self._logger_mgr.stop()
     
-    async def register_to_gateway(self, gateway_address: str):
-        """Register to the gateway service."""
+    async def register_to_gateway(self, gateway_address: str, timeout: float = 5.0):
+        """Register to the gateway service.
+        
+        Args:
+            gateway_address: Address of the gateway service (e.g., "localhost:50052")
+            timeout: Timeout for registering to the gateway service (default is 5 seconds)
+        """
         self._gateway_address = gateway_address
         if not self._server:
             raise RuntimeError("Agent server not started. Call start() first.")
             
-        await self._server.connect_to_gateway(gateway_address)
+        try:
+            self._logger.info(f"<Agent>: Connecting to gateway at [{gateway_address}]...")
+            await asyncio.wait_for(self._server.connect_to_gateway(gateway_address), timeout=timeout)
+        except asyncio.TimeoutError:
+            self._logger.error(f"<Agent>: Failed to register to Gateway at [{gateway_address}] - Timeout")
+            raise
         
         return self
     
@@ -243,15 +255,15 @@ class Agent:
         
         return content_items
 
-    def create_agent_message(self, 
-                           receiver_id: str, 
-                           content: Union[str, bytes, List[Union[str, bytes]]],
-                           session_id: str = None,
-                           task_info: TaskInfo = None,
-                           content_mode: Optional[Union[Mode, List[Mode]]] = None,
-                           session_status: SessionStatus = SessionStatus.START_QUEST,
-                           message_id: str = None,
-                           reply_to_message_id: str = None) -> AgentMessage:
+    def create_agent_message(self,
+                             receiver_id: str,
+                             content: Union[str, bytes, List[Union[str, bytes]]],
+                             session_id: str = None,
+                             task_info: TaskInfo = None,
+                             content_mode: Optional[Union[Mode, List[Mode]]] = None,
+                             session_status: SessionStatus = SessionStatus.START_QUEST,
+                             message_id: str = None,
+                             reply_to_message_id: str = None) -> AgentMessage:
         """
         Create an AgentMessage object.
         
@@ -293,15 +305,32 @@ class Agent:
         
         return message
 
-    async def create_agent_client(
-            self, receiver_id,
-            stub=GatewayServiceStub,
-            stream_calling="RouteAgentCalling"
-    ):
-        client = AgentClient()
-        session_id = await client.start(self._gateway_address, stub, stream_calling)
-        self._agent_clients[(session_id, receiver_id)] = client
-        return session_id
+    async def create_agent_client(self,
+                                  receiver_id,
+                                  stub=GatewayServiceStub,
+                                  agent_calling="RouteAgentCalling",
+                                  serve_address=None) -> Optional[str]:
+        if not serve_address:
+            if not self._gateway_address:
+                self._logger.error("<Agent>: agent client connects to Gateway by default, but the gateway address is None")
+                raise
+            serve_address = self._gateway_address
+
+        try:
+            client = AgentClient(serve_address, stub, agent_calling)
+            session_id = await client.start()
+
+            if (session_id, receiver_id) in self._agent_clients:
+                self._logger.warning(f"<Agent>: Failed to create agent client since the "
+                                     f"(session id: {session_id} | receiver_id:{receiver_id}) is already connected")
+                await client.close()
+                return None
+
+            self._agent_clients[(session_id, receiver_id)] = client
+            return session_id
+        except Exception as e:
+            self._logger.error(f"<Agent>: Failed to create agent client - Exception: {e}")
+            return None
 
     async def submit_inquiry(self,
                              session_id: str,
@@ -325,13 +354,12 @@ class Agent:
         Returns:
             The AgentClient instance associated with this session
         """
-        if not self._gateway_address:
-            raise RuntimeError("Not connected to gateway")
         
         # Check if we already have an active client for this receiver
         client = self._agent_clients.get((session_id, receiver_id))
         if not client:
-            raise RuntimeError(f"Not existed client (session id: {session_id} | receiver_id: {receiver_id})")
+            self._logger.error(f"<Agent>: Not existed agent client (session id: {session_id} | receiver_id: {receiver_id})")
+            raise
 
         # Determine session status based on client existence and provided status
         if session_status is None:
@@ -370,9 +398,10 @@ class Agent:
         """
         client = self._agent_clients.get((session_id, receiver_id))
         if not client:
-            raise RuntimeError(f"Not existed client (session id: {session_id} | receiver_id: {receiver_id})")
+            self._logger.error(f"Not existed agent client (session id: {session_id} | receiver_id: {receiver_id})")
+            raise
 
-        response = await client.response_queue.get()
+        response = await client.get_response()
         if response.session_status == SessionStatus.STOP_RESPONSE:
             await self.close_agent_client(session_id, receiver_id)
 
@@ -448,108 +477,85 @@ class Agent:
 
         return results
 
-    def create_tool_request(self, 
-                            receiver_id: str, 
-                            session_id: str = None,
-                            tool_name: str = None,
-                            arguments: Dict[str, Any] = None) -> ToolRequest:
-        """
-        Create an AgentMessage object.
-        
-        Args:
-            receiver_id: ID of the tool to call.
-            session_id: Optional session ID (automatically generated if not provided)
-            tool_name: Tool name
-            arguments: Arguments for the tool call.
-            
-        Returns:
-            ToolRequest object
-        """
-        # Convert arguments to JSON string to support complex structures
-        arguments = json.dumps(arguments) if arguments else "{}"
+    async def create_tool_client(self,
+                                 receiver_id,
+                                 stub=GatewayServiceStub,
+                                 tool_calling="RouteToolCalling",
+                                 serve_address=None):
+        if not serve_address:
+            if not self._gateway_address:
+                self._logger.error("<Agent>: Tool client connects to Gateway by default, but the gateway address is None")
+                raise
+            serve_address = self._gateway_address
 
-        # Create the requst
-        request = ToolRequest(
-            sender_id=self.agent_id,
-            receiver_id=receiver_id,
-            session_id=session_id or f"session_{uuid.uuid4().hex[:8]}",
-            tool_name=tool_name or "unknown",
-            arguments=arguments
-        )
-        
-        return request
+        try:
+            client = ToolClient(serve_address, stub, tool_calling)
+            await client.start()
+
+            if receiver_id in self._tool_clients:
+                self._logger.warning(f"<Agent>: Failed to create tool client since the "
+                                     f"(receiver_id:{receiver_id}) is already connected")
+
+            self._tool_clients[receiver_id] = client
+
+        except Exception as e:
+            self._logger.error(f"<Agent>: Failed to create tool client - Exception: {e}")
 
     async def call_tool(self, 
-                        tool_id: str, 
-                        session_id: str = None,
+                        toolbox_id: str,
                         tool_name: str = None,
-                        arguments: Dict[str, Any] = None) -> ToolResponse:
+                        arguments: str = None) -> ToolResponse:
         """
         Call a tool with the given ID through gateway.
         
         Args:
-            tool_id (str): ID of the tool to call.
+            toolbox_id (str): ID of the toolbox to call.
             session_id: Optional session ID (automatically generated if not provided)
             arguments (Dict[str, Any], optional): Arguments for the tool call.
             
         Returns:
             ToolResponse: The response from the tool.
         """
-        
-        if not self._gateway_address:
-            raise RuntimeError("Not connected to gateway")
-            
-            
-        # Check if we already have an tool client for this receiver tool
-        tool_client = self._tool_clients.get(tool_id)
-        
-        # Create a new client if none exists
-        if not tool_client:
-            # Create a new tool client and connect to the gateway
-            tool_client = await ToolClient().start(
-                self._gateway_address,
-                GatewayServiceStub,
-                "RouteToolCalling"
-            )
-            self._tool_clients[tool_id] = tool_client
-                
-        # Create tool request
-        request = self.create_tool_request(
-                receiver_id=tool_id,
-                session_id=session_id or tool_client.session.session_id,
-                tool_name=tool_name,
-                arguments=arguments if arguments else {}
-            )
-        
+        # Check if we already have a tool client for this receiver tool
+        client = self._tool_clients.get(toolbox_id)
+        if not client:
+            self._logger.error(f"<Agent>: Not existed tool client (toolbox_id: {toolbox_id})")
+            raise
+
         try:
             # Send the request and get the response
-            response = await tool_client.send_request(request)
+            response = await client.send_request(
+                sender_id=self.agent_id,
+                receiver_id=toolbox_id,
+                tool_name=tool_name,
+                arguments=arguments
+            )
             return response
                 
         except TimeoutError:
             # Handle timeout specifically
-            self._logger.error(f"<Agent>: Tool call to [{tool_id}] timed out")
+            self._logger.error(f"<Agent>: Tool call to [{toolbox_id}] timed out")
             raise
         except Exception as e:
             # Handle other exceptions
-            self._logger.error(f"<Agent>: Failed to call tool [{tool_id}] - Exception: {str(e)}")
+            self._logger.error(f"<Agent>: Failed to call tool [{toolbox_id}] - Exception: {str(e)}")
             raise
     
-    async def close_tool_client(self, tool_id: str) -> bool:
+    async def close_tool_client(self, toolbox_id: str) -> bool:
         """
         Close a specific tool client.
         
         Args:
-            tool_id: ID of the tool
+            toolbox_id: ID of the toolbox
             
         Returns:
             True if client was closed, False if not found
         """
-        client = self._tool_clients.pop(tool_id, None)
+        client = self._tool_clients.pop(toolbox_id, None)
         if client:
             try:
                 await client.close()
-                self._logger.debug(f"Cleaned up tool client for [{tool_id}]")
+                self._logger.debug(f"Cleaned up tool client for [{toolbox_id}]")
             except Exception as e:
                 self._logger.error(f"<Agent>: Failed to clean up tool client - Exception: {e}")
             return True

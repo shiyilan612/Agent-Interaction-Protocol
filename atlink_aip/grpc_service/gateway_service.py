@@ -30,7 +30,7 @@ class GatewayService(GatewayServiceServicer):
         self.gateway_id = gateway_id if gateway_id else f"gateway_{str(uuid.uuid4())}"
 
         # init registry dict
-        self._registry: Dict[str, Union[pb2.AgentInfo, pb2.ToolInfo]] = {}
+        self._registry: Dict[str, Union[pb2.AgentInfo, pb2.ToolBoxInfo]] = {}
         
         self._registered_addresses: Set[str] = set()
 
@@ -86,22 +86,22 @@ class GatewayService(GatewayServiceServicer):
             peer = pb2.Peer()
             if isinstance(info, pb2.AgentInfo):
                 peer.agent_info.CopyFrom(info)
-            elif isinstance(info, pb2.ToolInfo):
-                peer.tool_info.CopyFrom(info)
+            elif isinstance(info, pb2.ToolBoxInfo):
+                peer.toolbox_info.CopyFrom(info)
             else:
                 raise ValueError(f"Unknown node type: {type(info)}")
             peers.append(peer)
 
         return peers
     
-    async def get_node_info(self, node_id: str) -> Union[pb2.AgentInfo, pb2.ToolInfo, None]:
+    async def get_node_info(self, node_id: str) -> Union[pb2.AgentInfo, pb2.ToolBoxInfo, None]:
         """ Retrieves the node info by its node id.
 
         Args:
             node_id (str): node id
 
         Returns:
-            node_info (Union[pb2.AgentInfo, pb2.AgentInfo, None]): 
+            node_info (Union[pb2.AgentInfo, pb2.ToolBoxInfo, None]): 
             node info if the node ID is found; otherwise, None
         """
         node_info = self._registry.get(node_id)
@@ -219,34 +219,34 @@ class GatewayService(GatewayServiceServicer):
         )
 
     async def RegisterTool(self,
-                           request: pb2.ToolInfo,
+                           request: pb2.ToolBoxInfo,
                            context: grpc.aio.ServicerContext) -> pb2.RegisterToolResponse:
-        tool_id = request.tool_id
+        toolbox_id = request.toolbox_id
         address = request.address
         
-        if tool_id in self._registry:
-            self._logger.error(f"<Gateway>: Attempted to register already registered Tool [tool_id]")
+        if toolbox_id in self._registry:
+            self._logger.error(f"<Gateway>: Attempted to register already registered ToolBox [{toolbox_id}]")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
-            context.set_details(f"Tool [{tool_id}] already registered.")
+            context.set_details(f"Tool [{toolbox_id}] already registered.")
             
             return
 
         if address in self._registered_addresses:
-            self._logger.error(f"<Gateway>: Tool [{tool_id}] attempted to register already "
+            self._logger.error(f"<Gateway>: ToolBox [{toolbox_id}] attempted to register already "
                                 f"registered address [{address}]")
             context.set_code(grpc.StatusCode.ALREADY_EXISTS)
             context.set_details(f"Address [{address}] already registered.")
             
             return
         
-        self._registry[tool_id] = request
+        self._registry[toolbox_id] = request
         self._registered_addresses.add(address)
 
         # Initialize heartbeat timestamp
-        self._last_heartbeats[tool_id] = time.time()
+        self._last_heartbeats[toolbox_id] = time.time()
 
         await self._connection_pool.create_stub(address, ToolServiceStub)
-        self._logger.info(f"<Gateway>: Registered Tool [{tool_id}] at address [{address}]")
+        self._logger.info(f"<Gateway>: Registered ToolBox [{toolbox_id}] at address [{address}]")
         
         return pb2.RegisterToolResponse(
             success=True
@@ -290,6 +290,35 @@ class GatewayService(GatewayServiceServicer):
             success=True,
             message="Heartbeat received"
         )
+        
+    async def UpdateNodeInfo(self, 
+                            request: pb2.UpdateNodeInfoRequest,
+                            context: grpc.aio.ServicerContext) -> pb2.UpdateNodeInfoResponse:
+        """Update node information in the registry."""
+        set_field = request.node_info.WhichOneof("info_type")
+        node_type = set_field.removesuffix("_info").capitalize()
+        
+        if set_field == "agent_info":
+            info = request.node_info.agent_info
+            node_id = info.agent_id
+        elif set_field == "toolbox_info":
+            info = request.node_info.toolbox_info
+            node_id = info.toolbox_id
+        else:
+            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+            context.set_details(f"Unsupported info_type: {set_field}")
+            return pb2.UpdateNodeInfoResponse(success=False, message=f"Unsupported info_type: {set_field}")
+
+        if node_id not in self._registry:
+            error_msg = f"{node_type} [{node_id}] not registered."
+            self._logger.error(f"<Gateway>: Attempted to update non-registered {node_type}: [{node_id}]")
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(error_msg)
+            return pb2.UpdateNodeInfoResponse(success=False, message=error_msg)
+
+        self._registry[node_id] = info
+        self._logger.info(f"<Gateway>: Updated node [{node_id}] information")
+        return pb2.UpdateNodeInfoResponse(success=True, message=f"Node [{node_id}] updated successfully.")
 
     async def _monitor_heartbeats(self):
         """Monitor heartbeats and disconnect timed-out nodes."""

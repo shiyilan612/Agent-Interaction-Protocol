@@ -22,26 +22,23 @@ class ToolService(ToolServiceServicer):
     """Base ToolService class for handling tool requests and registration with gateway."""
     
     def __init__(self,
-                 tool_info: pb2.ToolInfo,
+                 toolbox_info: pb2.ToolBoxInfo,
                  heartbeat_interval: int = 10):
         """
         Initialize a new Tool instance.
 
         Args:
-            tool_info:
+            toolbox_info: 
                  address: str,
-                 tool_id: str = None,
+                 toolbox_id: str = None,
                  name: str = None,
                  domain: str = "default",
                  description: str = "",
-                 version: str = "1.0.0",
-                 input_mode: pb2.Mode = pb2.Mode.TEXT,
-                 output_mode: pb2.Mode = pb2.Mode.TEXT,
-                 arguments: Dict[str, str] = None
+                 tools: List[ToolInfo] = []
         """
-        self.tool_info = tool_info
-        self.tool_id = self.tool_info.tool_id
-        self.address = self.tool_info.address
+        self.toolbox_info = toolbox_info
+        self.toolbox_id = self.toolbox_info.toolbox_id
+        self.address = self.toolbox_info.address
 
         # init gateway address
         self._gateway_address = None
@@ -50,7 +47,7 @@ class ToolService(ToolServiceServicer):
         self._server = None
         
         self._logger_mgr = LoggerManager()
-        self._logger = self._logger_mgr.get_logger(self.tool_id)
+        self._logger = self._logger_mgr.get_logger(self.toolbox_id)
 
         # stubs of nodes connected to this tool service
         self._connection_pool = ConnectionPool(self._logger)
@@ -87,27 +84,37 @@ class ToolService(ToolServiceServicer):
         if not self._gateway_address:
             return
         stub = self._connection_pool.get_stub(self._gateway_address)
+        heartbeat_failed_count = 0
 
         while True:
             try:
                 # Create heartbeat request
-                request = pb2.HeartbeatRequest(sender_id=self.tool_id)
+                request = pb2.HeartbeatRequest(sender_id=self.toolbox_id)
                 # Send heartbeat
                 response = await stub.Heartbeat(request)
                 if not response.success:
-                    self._logger.debug(f"<Tool>: Heartbeat failed: {response.message}")
+                    heartbeat_failed_count += 1
+                    self._logger.error(f"<Tool>: Heartbeat failed: {response.message}")
                 else:
+                    heartbeat_failed_count = 0
                     self._logger.debug(f"<Tool>: Heartbeat sent successfully")
 
                 # Wait for the next interval
                 await asyncio.sleep(self.heartbeat_interval)
 
             except grpc.aio.AioRpcError as e:
+                heartbeat_failed_count += 1
                 self._logger.error(f"<Tool>: Heartbeat RPC error: {e.details()}")
                 await asyncio.sleep(self.heartbeat_interval)
             except Exception as e:
+                heartbeat_failed_count += 1
                 self._logger.error(f"<Tool>: Heartbeat error: {str(e)}")
                 await asyncio.sleep(self.heartbeat_interval)
+
+            if heartbeat_failed_count >= 3:
+                self._logger.error(f"<Tool>: Heartbeat failed 3 times, disconnecting from gateway")
+                await self.disconnect_from_gateway()
+                break
             
     async def start(self):
         """
@@ -120,7 +127,7 @@ class ToolService(ToolServiceServicer):
         add_ToolServiceServicer_to_server(self, self._server)
         self._server.add_insecure_port(self.address)
         await self._server.start()
-        self._logger.info(f"<Tool>: Tool [{self.tool_id}] started on [{self.address}]")
+        self._logger.info(f"<Tool>: ToolBox [{self.toolbox_id}] started on [{self.address}]")
         asyncio.create_task(self._handle_server_termination())
 
         return self
@@ -130,7 +137,7 @@ class ToolService(ToolServiceServicer):
         if self._server:
             await self._server.stop(grace=10.0)
             await self.disconnect_from_gateway()
-            self._logger.info(f"<Tool>: Tool service [{self.tool_id}] at [{self.address}] stopped")
+            self._logger.info(f"<Tool>: ToolBox service [{self.toolbox_id}] at [{self.address}] stopped")
         # Close all connections in the pool
         await self._connection_pool.close_all()
 
@@ -146,7 +153,7 @@ class ToolService(ToolServiceServicer):
         stub = self._connection_pool.get_stub(self._gateway_address)
         try:
             # Register Tool with gateway
-            response = await stub.RegisterTool(self.tool_info)
+            response = await stub.RegisterTool(self.toolbox_info)
             
             self._logger.info(f"<Tool>: {'Registered' if response else 'Failed to register'}"
                               f" to Gateway at [{gateway_address}]")
@@ -172,7 +179,7 @@ class ToolService(ToolServiceServicer):
 
         try:
             # deregister tool  
-            response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.tool_id))          
+            response = await stub.DeregisterNode(pb2.DeregisterNodeRequest(node_id=self.toolbox_id))          
             await self._connection_pool.close_stub(self._gateway_address)
             
             self._logger.info(f"<Tool>: {'Deregistered' if response else 'Failed to deregister'}"
@@ -198,3 +205,20 @@ class ToolService(ToolServiceServicer):
         except Exception as e:
             self._logger.error(f"<Tool>: Failed to deregister from Gateway at [{self._gateway_address}] - "
                                f"Exception: {str(e)}")
+            
+    async def update_toolbox_info(self, new_toolbox_info: pb2.ToolBoxInfo) -> None:
+        """Update the tool info with the gateway.
+        Args:
+            new_toolbox_info: New toolbox information to update
+        """
+        self.toolbox_info = new_toolbox_info
+        if self._gateway_address:
+            stub = self._connection_pool.get_stub(self._gateway_address)
+            
+            node_info = pb2.Peer()
+            node_info.toolbox_info.CopyFrom(new_toolbox_info)
+            
+            response = await stub.UpdateNodeInfo(pb2.UpdateNodeInfoRequest(node_info=node_info))
+            
+            self._logger.info(f"<Tool>: {'Updated' if response.success else 'Failed to update'} "
+                              f"toolbox info with Gateway at [{self._gateway_address}]")
