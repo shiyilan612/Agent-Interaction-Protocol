@@ -1,17 +1,22 @@
 # run_gateway.py
 import asyncio
+import argparse
 from atlink_aip.module import Gateway
 
-async def main():
-    gateway = Gateway(address="localhost:50050", gateway_id="test_gw")
+
+async def main(args):
+    gateway = Gateway(host_address=args.host_address, gateway_id=args.gateway_id)
     await gateway.start()
-    print("Gateway started. Press Ctrl+C to exit.")
+
     try:
-        while True:
-            await asyncio.sleep(9999999)
+        await asyncio.sleep(float('inf'))
     except asyncio.CancelledError:
-        print("Stopping gateway...")
         await gateway.stop()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host_address", default="localhost:50000")
+    parser.add_argument("--gateway_id", default="example_gateway")
+    args = parser.parse_args()
+
+    asyncio.run(main(args))
