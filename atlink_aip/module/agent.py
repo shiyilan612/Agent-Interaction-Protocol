@@ -34,7 +34,8 @@ class Agent:
                  version: str = "1.0.0",
                  input_mode: List[Mode] = [Mode.TEXT],
                  output_mode: List[Mode] = [Mode.TEXT],
-                 skills: List[AgentSkill] = None):
+                 skills: List[AgentSkill] = None,
+                 with_auth: bool = False):
         """
         Initialize a new Agent.
         
@@ -60,6 +61,8 @@ class Agent:
         self.input_mode = input_mode
         self.output_mode = output_mode
         self.skills = skills or []
+        self.with_auth = with_auth
+        self.secure = False
         
         # Create agent info
         self.agent_info = self._create_agent_info()
@@ -81,6 +84,35 @@ class Agent:
         self._logger_mgr = LoggerManager()
         self._logger = self._logger_mgr.get_logger(self.agent_id)
         
+        self.private_key_path = None
+        self.public_key_path = None
+        self.server_credentials = None
+        self.client_credentials = None
+
+
+
+        async def enable_security(self, private_key_path: str, public_key_path: str):
+            """启用安全通信，加载证书"""
+            self.private_key_path = private_key_path
+            self.public_key_path = public_key_path
+            
+            # 读取私钥和证书
+            with open(private_key_path, 'rb') as f:
+                private_key = f.read()
+            with open(public_key_path, 'rb') as f:
+                certificate_chain = f.read()
+            
+            # 创建服务器凭证
+            self.server_credentials = grpc.ssl_server_credentials(
+                [(private_key, certificate_chain)]
+            )
+            
+            # 创建客户端凭证
+            self.client_credentials = grpc.ssl_channel_credentials(
+                root_certificates=certificate_chain
+            )
+            
+            self.with_auth = True
     def _create_agent_info(self) -> AgentInfo:
         """Create an AgentInfo object for registration with the gateway."""
         agent_info = AgentInfo(
@@ -98,7 +130,7 @@ class Agent:
     
     async def start(self):
         """Start the agent server."""
-        self._server = AgentServer(self.agent_info)
+        self._server = AgentServer(self.agent_info,with_auth=self.with_auth,server_credentials=self.server_credentials)
         await self._server.start()
         return self
     

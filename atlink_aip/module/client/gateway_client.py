@@ -21,7 +21,7 @@ class GatewayClient:
     GatewayClient,
     """
 
-    def __init__(self, gateway_address):
+    def __init__(self, gateway_address,with_auth=False,ssl_cert_path=None, ssl_ca_path=None,ssl_key_path=None):
         """
         Initialize a new gateway client.
 
@@ -32,10 +32,39 @@ class GatewayClient:
         self.gateway_stub = None
         self._tool_clients = dict()
         self._agent_clients = dict()
+        self.with_auth = with_auth
+        self.ssl_cert_path = ssl_cert_path
+        self.ssl_key_path = ssl_key_path
+        self.channel = None
+        self._secure = False
+        
+        self._credentials = None if not with_auth else self._load_credentials()
+        if with_auth:
+                self._credentials = self._load_credentials()
+        
+    def _load_credentials(self):
+        """加载客户端证书凭证"""
+        if not self.ssl_cert_path or not self.ssl_key_path:
+            raise ValueError("SSL证书路径未配置")
+        
+        with open(self.ssl_cert_path, 'rb') as f:
+            cert = f.read()
+        with open(self.ssl_key_path, 'rb') as f:
+            key = f.read()
 
+        root_certificates = None
+        if self.ssl_ca_path:
+            with open(self.ssl_ca_path, 'rb') as f:
+                root_certificates = f.read()
+        
+        return grpc.ssl_channel_credentials(
+            root_certificates=root_certificates,
+            private_key=key,
+            certificate_chain=cert
+        )
     async def create_tool_client(self, toolbox_id: str):
         try:
-            client = ToolClient(self.gateway_address, GatewayServiceStub, "RouteToolCalling")
+            client = ToolClient(self.gateway_address, GatewayServiceStub, "RouteToolCalling",with_auth=self.with_auth,credentials=self._credentials)
             await client.start()
 
             if toolbox_id in self._tool_clients:
@@ -49,7 +78,7 @@ class GatewayClient:
 
     async def create_agent_client(self, agent_id: str) -> Optional[str]:
         try:
-            client = AgentClient(self.gateway_address, GatewayServiceStub, "RouteAgentCalling")
+            client = AgentClient(self.gateway_address, GatewayServiceStub, "RouteAgentCalling",with_auth=self.with_auth,credentials=self._credentials)
             session_id = await client.start()
 
             if (session_id, agent_id) in self._agent_clients:
@@ -82,9 +111,17 @@ class GatewayClient:
             await client.close()
 
     async def start(self):
-        channel = grpc.aio.insecure_channel(self.gateway_address)
-        await channel.channel_ready()
-        self.gateway_stub = GatewayServiceStub(channel)
+    # 如果启用了认证，使用带证书的 TLS 通道
+        if self.with_auth and self._credentials:
+            self.channel = grpc.aio.secure_channel(
+                self.gateway_address,
+                self._credentials
+            )
+        else:
+            self.channel = grpc.aio.insecure_channel(self.gateway_address)
+        
+        await self.channel.channel_ready()
+        self.gateway_stub = GatewayServiceStub(self.channel)
         return self
 
     async def stop(self):
