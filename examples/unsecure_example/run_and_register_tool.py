@@ -1,19 +1,23 @@
 import asyncio
 import argparse
-from atlink_aip.module import ToolBox
+from ..module import ToolBox
 
 async def main(args):
-    # init toolbox
-    toolbox = ToolBox(host_address=args.host_address, name=args.toolbox_name, toolbox_id=args.toolbox_id)
-
-    # add tool
+    #init toolbox
+    toolbox = ToolBox(
+        host_address=args.host_address,
+        name=args.toolbox_name,
+        toolbox_id=args.toolbox_id
+    )
+    
+    await toolbox.start()
+    
+    #add tool
     @toolbox.tool()
     async def calculate_sum(a: int, b: int) -> int:
         """Adds two numbers and returns the sum."""
         return int(a) + int(b)
 
-    # register toolbox to gateway
-    await toolbox.start()
     await toolbox.register_to_gateway(args.gateway_address)
 
     try:

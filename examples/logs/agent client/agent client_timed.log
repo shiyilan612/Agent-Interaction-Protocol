@@ -1,0 +1,11 @@
+2025-08-04 15:41:17 | INFO     | agent client | <Agent>: Agent [agent client] server started on [localhost:53000]
+2025-08-04 15:41:17 | INFO     | agent client | <Agent>: Connecting to gateway at [localhost:50000]...
+2025-08-04 15:41:17 | INFO     | agent client | <Agent>: Registered to Gateway at [localhost:50000]
+2025-08-04 15:41:17 | INFO     | agent client | <Agent>: Updated peers from Gateway at [localhost:50000]
+2025-08-04 15:41:20 | INFO     | agent client | <Agent>: Deregistered from Gateway at [localhost:50000]
+2025-08-04 15:41:20 | INFO     | agent client | <Agent>: Agent service [agent client] at [localhost:53000] stopped
+2025-08-04 15:41:20 | INFO     | agent client | <Connection Pool>: All connections closed
+2025-08-04 15:42:15 | INFO     | agent client | <Agent>: Agent [agent client] server started on [localhost:53000]
+2025-08-04 15:42:15 | INFO     | agent client | <Agent>: Connecting to gateway at [localhost:50000]...
+2025-08-04 15:42:15 | INFO     | agent client | <Agent>: Registered to Gateway at [localhost:50000]
+2025-08-04 15:42:15 | INFO     | agent client | <Agent>: Updated peers from Gateway at [localhost:50000]

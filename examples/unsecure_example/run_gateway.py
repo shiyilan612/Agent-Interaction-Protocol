@@ -1,13 +1,16 @@
-# run_gateway.py
 import asyncio
 import argparse
-from atlink_aip.module import Gateway
-
+from ..module import Gateway
 
 async def main(args):
-    gateway = Gateway(host_address=args.host_address, gateway_id=args.gateway_id)
+    gateway = Gateway(
+        host_address=args.host_address,
+        gateway_id=args.gateway_id,
+    )
+    
+    #Æô¶¯gateway
     await gateway.start()
-
+    
     try:
         await asyncio.sleep(float('inf'))
     except asyncio.CancelledError:
@@ -20,3 +23,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(main(args))
+
