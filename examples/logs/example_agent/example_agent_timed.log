@@ -1,3 +1,0 @@
-2025-08-04 15:40:56 | INFO     | example_agent | <Agent>: Agent [example_agent] server started on [localhost:52000]
-2025-08-04 15:40:56 | INFO     | example_agent | <Agent>: Connecting to gateway at [localhost:50000]...
-2025-08-04 15:40:56 | INFO     | example_agent | <Agent>: Registered to Gateway at [localhost:50000]

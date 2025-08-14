@@ -11,12 +11,14 @@ from ...session import ToolClientSession
 
 
 class ToolClient:
-    def __init__(self, server_address, stub=ToolServiceStub, tool_calling="CallTool"):
+    def __init__(self, server_address, stub=ToolServiceStub, tool_calling="CallTool",with_auth=False,credentials=None):
         self.channel = None
         self.session = None
         self.server_address = server_address
         self.stub = stub
         self.tool_calling = tool_calling
+        self.with_auth = with_auth  
+        self.credentials = credentials  
 
     async def __aenter__(self):
         return await self.start()
@@ -26,7 +28,14 @@ class ToolClient:
         return False
 
     async def start(self):
-        self.channel = grpc.aio.insecure_channel(self.server_address)
+        if self.with_auth and self.credentials:
+            self.channel = grpc.aio.secure_channel(
+                self.server_address, 
+                self.credentials
+            )
+        else:
+            self.channel = grpc.aio.insecure_channel(self.server_address)
+        
         await self.channel.channel_ready()
         unary_unary_call = getattr(self.stub(self.channel), self.tool_calling)
         self.session = ToolClientSession(unary_unary_call)

@@ -14,10 +14,26 @@ from ...session import AgentServerSessionManager
 
 
 class AgentServer(AgentService):
-    def __init__(self, agent_info: AgentInfo):
+    def __init__(self, agent_info: AgentInfo,with_auth: bool = False,server_credentials=None):
         super().__init__(agent_info.to_grpc())
         self.session_mgr = AgentServerSessionManager(self._logger)
-
+        self.with_auth = with_auth
+        self.server_credentials = server_credentials
+    async def start(self):
+        self.server = grpc.aio.server()
+        
+        # 添加服务...
+        
+        # 根据安全配置选择端口类型
+        if self.with_auth and self.server_credentials:
+            self.server.add_secure_port(
+                self.agent_info.address, 
+                self.server_credentials
+            )
+        else:
+            self.server.add_insecure_port(self.agent_info.address)
+        
+        await self.server.start()
     async def receive_request(self):
         return await self.session_mgr.get_request()
 
