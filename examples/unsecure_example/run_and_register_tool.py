@@ -1,6 +1,6 @@
 import asyncio
 import argparse
-from ..module import ToolBox
+from atlink_aip.module import ToolBox
 
 async def main(args):
     #init toolbox

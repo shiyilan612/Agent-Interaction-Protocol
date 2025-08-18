@@ -1,12 +1,10 @@
-
-
 import requests
 import asyncio
 import argparse
 import traceback
 from functools import partial
-from ..grpc_service.type import Mode
-from ..module import Agent
+from atlink_aip.grpc_service.type import Mode
+from atlink_aip.module import Agent
 
 async def call_LLM(url: str, api_key: str, model: str, text: str) -> str:
     headers = {
@@ -31,7 +29,7 @@ async def call_LLM(url: str, api_key: str, model: str, text: str) -> str:
         return output
 
     except Exception as e:
-        return f"LLM调用失败: {str(e)}"
+        return f"LLM invocation failed: {str(e)}"
 
 async def process_message(agent, args):
     try:
@@ -57,17 +55,16 @@ async def process_message(agent, args):
                     content_mode=[Mode.TEXT]
                 )
     except Exception as e:
-        print(f"消息处理出错: {str(e)}")
+        print(f"Error processing message: {str(e)}")
         traceback.print_exc()
     finally:
-        #确保停止代理服务
-        print("消息处理循环结束，准备关闭代理")
+        print("Message processing loop ended, preparing to close agent")
         await agent.stop()
 
 async def main(args):
     agent = None
     try:
-        print(f"启动代理服务: {args.agent_id}")
+        print(f"Starting agent service: {args.agent_id}")
         agent = Agent(
             agent_id=args.agent_id,
             host_address=args.host_address,
@@ -75,43 +72,38 @@ async def main(args):
             description=f"LLM Mode:{args.model}",
         )
         
-        #启用安全连接
         if args.with_auth:
-            print("启用安全连接...")
+            print("Enabling secure connection...")
             await agent.enable_security(
                 private_key_path=args.private_key,
                 public_key_path=args.public_key,
             )
         
-        #启动代理并注册到网关
-        print("启动服务器...")
+        print("Starting server...")
         await agent.start()
-        print(f"注册到网关: {args.gateway_address}")
+        print(f"Registering to gateway: {args.gateway_address}")
         await agent.register_to_gateway(args.gateway_address)
-        print(f"代理已成功注册，监听地址: {args.host_address}")
+        print(f"Agent registered successfully, listening on: {args.host_address}")
         
-        #启动消息处理任务
-        print("启动消息处理循环...")
+        print("Starting message processing loop...")
         message_task = asyncio.create_task(process_message(agent, args))
         
-        #等待服务运行
-        print("代理服务运行中...按Ctrl+C退出")
+        print("Agent service running... Press Ctrl+C to exit")
         await asyncio.gather(message_task)
         
     except asyncio.CancelledError:
-        print("代理服务被取消")
+        print("Agent service cancelled")
     except Exception as e:
-        print(f"代理服务发生异常: {str(e)}")
+        print(f"Agent service encountered an exception: {str(e)}")
         traceback.print_exc()
     finally:
-        #确保关闭代理
         if agent is not None:
             try:
-                print("关闭代理服务...")
+                print("Closing agent service...")
                 await agent.stop()
-                print("代理服务已关闭")
+                print("Agent service closed")
             except Exception as stop_e:
-                print(f"关闭代理时出错: {str(stop_e)}")
+                print(f"Error closing agent: {str(stop_e)}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -122,15 +114,15 @@ if __name__ == "__main__":
     parser.add_argument("--agent_name", default="LLM Agent")
     parser.add_argument("--gateway_address", default="localhost:50000")
     parser.add_argument("--host_address", default="localhost:52000")
-    parser.add_argument("--with_auth", action="store_true", help="启用安全连接")
-    parser.add_argument("--private_key", default="server.key", help="服务端私钥路径")
-    parser.add_argument("--public_key", default="ca.key", help="根公钥路径")
+    parser.add_argument("--with_auth", action="store_true", help="Enable secure connection")
+    parser.add_argument("--private_key", default="server.key", help="Server private key path")
+    parser.add_argument("--public_key", default="ca.key", help="Root public key path")
     args = parser.parse_args()
 
     print(f"LLM URL: {args.llm_url}")
-    print(f"使用模型: {args.model}")
+    print(f"Using model: {args.model}")
     
     try:
         asyncio.run(main(args))
     except KeyboardInterrupt:
-        print("代理服务被用户中断")
+        print("Agent service interrupted by user")

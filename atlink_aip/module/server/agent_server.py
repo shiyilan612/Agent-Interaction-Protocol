@@ -22,9 +22,7 @@ class AgentServer(AgentService):
     async def start(self):
         self.server = grpc.aio.server()
         
-        # 添加服务...
-        
-        # 根据安全配置选择端口类型
+       
         if self.with_auth and self.server_credentials:
             self.server.add_secure_port(
                 self.agent_info.address, 

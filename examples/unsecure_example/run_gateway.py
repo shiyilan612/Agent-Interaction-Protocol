@@ -1,6 +1,6 @@
 import asyncio
 import argparse
-from ..module import Gateway
+from atlink_aip.module import Gateway
 
 async def main(args):
     gateway = Gateway(
@@ -8,7 +8,6 @@ async def main(args):
         gateway_id=args.gateway_id,
     )
     
-    #Æô¶¯gateway
     await gateway.start()
     
     try:

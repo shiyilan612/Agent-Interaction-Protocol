@@ -43,9 +43,9 @@ class GatewayClient:
                 self._credentials = self._load_credentials()
         
     def _load_credentials(self):
-        """加载客户端证书凭证"""
+
         if not self.ssl_cert_path or not self.ssl_key_path:
-            raise ValueError("SSL证书路径未配置")
+            raise ValueError("The SSL certificate path has not been configured.")
         
         with open(self.ssl_cert_path, 'rb') as f:
             cert = f.read()
@@ -111,7 +111,6 @@ class GatewayClient:
             await client.close()
 
     async def start(self):
-    # 如果启用了认证，使用带证书的 TLS 通道
         if self.with_auth and self._credentials:
             self.channel = grpc.aio.secure_channel(
                 self.gateway_address,

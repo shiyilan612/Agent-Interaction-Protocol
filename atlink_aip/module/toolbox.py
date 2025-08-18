@@ -103,7 +103,7 @@ class ToolBox:
             tools=self.tools_info
         )
 
-        # 关键修改：添加gateway_stub存在性检查
+       
         if self._server and hasattr(self._server, 'gateway_stub') and self._server.gateway_stub:
             updata_task = asyncio.create_task(self._server.update_toolbox_info(self.toolbox_info.to_grpc()))
             

@@ -92,22 +92,19 @@ class Agent:
 
 
         async def enable_security(self, private_key_path: str, public_key_path: str):
-            """启用安全通信，加载证书"""
             self.private_key_path = private_key_path
             self.public_key_path = public_key_path
             
-            # 读取私钥和证书
             with open(private_key_path, 'rb') as f:
                 private_key = f.read()
             with open(public_key_path, 'rb') as f:
                 certificate_chain = f.read()
-            
-            # 创建服务器凭证
+
             self.server_credentials = grpc.ssl_server_credentials(
                 [(private_key, certificate_chain)]
             )
             
-            # 创建客户端凭证
+
             self.client_credentials = grpc.ssl_channel_credentials(
                 root_certificates=certificate_chain
             )
