@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: atlink-aip
+Version: 0.0.3
+Summary: Distributed Interconnected Agent Communication Protocol
+Author: Haixin Wang, Xiaomian Kang, Chunlin Leng
+Author-email: {haixin.wang & xiaomian.kang}@nlpr.ia.ac.cn, lengchunlin2023@ia.ac.cn
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: grpcio==1.73.1
+Requires-Dist: grpcio-tools==1.73.1
+Requires-Dist: tinydb==4.8.2
+Requires-Dist: aiohttp==3.12.14
+Requires-Dist: aiohttp-sse-client==0.2.1
+Requires-Dist: colorlog==6.9.0
+Requires-Dist: pydantic==2.11.7
+Dynamic: author
+Dynamic: author-email
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

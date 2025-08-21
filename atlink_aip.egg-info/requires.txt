@@ -1,0 +1,7 @@
+grpcio==1.73.1
+grpcio-tools==1.73.1
+tinydb==4.8.2
+aiohttp==3.12.14
+aiohttp-sse-client==0.2.1
+colorlog==6.9.0
+pydantic==2.11.7
