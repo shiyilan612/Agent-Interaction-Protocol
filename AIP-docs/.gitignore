@@ -1,0 +1,8 @@
+# 忽略所有文件
+*
+
+# 只保留文档目录
+!/docs-version
+/docs-version/*
+!/docs-version/0.0.1
+!.gitignore

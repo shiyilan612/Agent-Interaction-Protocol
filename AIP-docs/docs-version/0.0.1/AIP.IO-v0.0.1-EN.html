@@ -1,0 +1,145 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Introduction &mdash; AgentInteractionProtocol  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="协议说明" href="AIP.IO-v0.0.1-ZH.html" />
+    <link rel="prev" title="欢迎来到AgentInteractionProtocol文档" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AgentInteractionProtocol
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">文档目录:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#conception">Conception</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#characteristics">Characteristics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#architecture">Architecture</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="AIP.IO-v0.0.1-ZH.html">协议说明</a></li>
+<li class="toctree-l1"><a class="reference internal" href="AIP.IO-v0.0.1-ZH.html#python-api">PYTHON API</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AgentInteractionProtocol</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Introduction</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/AIP.IO-v0.0.1-EN.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="introduction">
+<h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h1>
+<section id="conception">
+<h2>Conception<a class="headerlink" href="#conception" title="Link to this heading"></a></h2>
+<p align="center"><img src="https://github.com/user-attachments/assets/b43e74cf-cb86-4d43-91c7-4409d84aa7c8" width = "600" height = "300"></p>
+<p>The ​​Agent Interaction Protocol (AIP)​​ is a distributed agent interaction protocol designed for multi-agent collaboration. AIP supports both agent-to-agent connectivity and agent-to-tool invocation. In addition to point-to-point connections, all agents and tools can be mounted as nodes on a shared gateway to form an interconnected network.</p>
+</section>
+<section id="characteristics">
+<h2>Characteristics<a class="headerlink" href="#characteristics" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>AIP supports both centralized proxy and peer-to-peer communication.</p></li>
+<li><p>AIP uses ​​gRPC​​ as the underlying communication protocol, enabling faster serialization/deserialization through binary data transmission.</p></li>
+<li><p>Agents communicate via ​​bidirectional asynchronous streams​​, supporting full-duplex real-time interaction.</p></li>
+</ul>
+</section>
+<section id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading"></a></h2>
+<p align="center"><img src="https://github.com/user-attachments/assets/7e593a88-ab0a-42fc-bca1-fd04fe739755" width = "300" height = "240"></p>
+<p>AIP adopts a layered design:</p>
+<ul class="simple">
+<li><p>​​Module Layer​​: Implements business logic distribution and coordination in the form of nodes or gateways.
+​​- Session Layer​​: Manages the lifecycle of each communication session between nodes, using unique session IDs and asynchronous task coordination to ensure real-time message processing and resource safety.</p></li>
+<li><p>​​Transport Layer​​: Handles message dispatching and reception between the Session Layer and gRPC interfaces.</p></li>
+</ul>
+<p align="center"><img src="https://github.com/user-attachments/assets/e674e3c6-b13c-43d2-a8c5-efb306240bd7" width = "600" height = "400"></p>
+<p>AIP supports two communication modes:</p>
+<p>​​- Request-Response​​: Used for agent-to-tool interactions.</p>
+<ul class="simple">
+<li><p>​​Bidirectional Asynchronous Streaming​​: Used for real-time full-duplex agent-to-agent communication. The session initiator is responsible for sending session termination requests.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="欢迎来到AgentInteractionProtocol文档" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="AIP.IO-v0.0.1-ZH.html" class="btn btn-neutral float-right" title="协议说明" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
