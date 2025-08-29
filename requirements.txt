@@ -5,3 +5,6 @@ aiohttp==3.12.14
 aiohttp-sse-client==0.2.1
 colorlog==6.9.0
 pydantic==2.11.7
+sphinx
+sphinx-rtd-theme
+myst-parser
