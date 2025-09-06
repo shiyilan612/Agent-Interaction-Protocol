@@ -1,0 +1,781 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>协议说明 &mdash; AgentInteractionProtocol  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9a2dae69"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Introduction" href="AIP.IO-v0.0.1-EN.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            AgentInteractionProtocol
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">文档目录:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="AIP.IO-v0.0.1-EN.html">Introduction</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">协议说明</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#id2">简介</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id3">协议特点</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#id4">协议架构</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="#python-api">PYTHON API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#gateway">Gateway</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#agent">Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#tool">Tool</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#memory">Memory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#protocol-data">Protocol Data</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">AgentInteractionProtocol</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">协议说明</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/AIP.IO-v0.0.1-ZH.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="id1">
+<h1>协议说明<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
+<section id="id2">
+<h2>简介<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p align="center"><img src="https://github.com/user-attachments/assets/b43e74cf-cb86-4d43-91c7-4409d84aa7c8" width = "600" height = "300"></p>
+Agent Interaction Protocol（AIP）是一个面向多智能体协作的分布式智能体交互协议。AIP同时支持智能体之间的互联和智能体对工具的调用。除了点对点连接外，所有的智能体和工具都可作为一个节点挂载在同一个网关中以形成互联。
+</section>
+<section id="id3">
+<h2>协议特点<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>AIP同时支持中心代理和点对点通信。</p></li>
+<li><p>AIP采用gRPC作为底层通信协议，以二进制形式传输数据，拥有更快的序列化/反序列化速度。</p></li>
+<li><p>Agent间采用双向异步流的通信方式，支持全双工实时交互。</p></li>
+</ul>
+</section>
+<section id="id4">
+<h2>协议架构<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p align="center"><img src="https://github.com/user-attachments/assets/7e593a88-ab0a-42fc-bca1-fd04fe739755" width = "300" height = "240"></p>
+AIP采用分层设计，模块层按照业务逻辑封装了一系列抽象类，对外抛出交互接口。会话层管理智能体间的对话，通过唯一会话标识与异步任务协同机制，确保消息的实时处理与资源安全。传输层负责会话层与gRPC接口之间的消息分发和消息接收。
+<p>-模块层：以节点或网关形式实现业务逻辑的分发与协调。
+-会话层：管理节点间每次通信的生命流程。
+-传输层：负责会话数据的接收与发送。</p>
+<p align="center"><img src="https://github.com/user-attachments/assets/e674e3c6-b13c-43d2-a8c5-efb306240bd7" width = "600" height = "400"></p>
+<p>AIP在通信中支持两种调用方式：请求-响应式与双向异步流式。在AIP中，智能体调用工具采用请求-响应式，智能体间通过双向异步流式进行全双工实时交互，由会话发起方负责发送会话关闭请求。</p>
+</section>
+</section>
+<section id="python-api">
+<h1>PYTHON API<a class="headerlink" href="#python-api" title="Link to this heading"></a></h1>
+<section id="gateway">
+<h2>Gateway<a class="headerlink" href="#gateway" title="Link to this heading"></a></h2>
+<p>class Gateway</p>
+<ul class="simple">
+<li><p>用途：提供一个中心代理服务，用于管理智能体代理 (Agent) 和工具 (Tool) 的注册和与通信。Gateway 作为一个核心组件，负责维护网络中所有节点的信息，并保障节点间的消息路由和通信。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>address (str)：网关服务的部署地址，如 “localhost:50051”</p></li>
+<li><p>gateway_id (str)：网关的唯一标识符，如果未提供则自动生成</p></li>
+</ul>
+</li>
+<li><p>方法说明：</p>
+<ul>
+<li><p>start()：初始化并启动网关服务，使其能够接收智能体代理和工具的注册请求并处理路由</p></li>
+<li><p>stop()：停止网关服务器，释放资源</p></li>
+<li><p>get_registered_nodes()：获取所有已注册的节点（Agent和Tool）的信息</p>
+<ul>
+<li><p>返回：{节点ID：节点信息}的字典 (Dict[str, Union[AgentInfo, ToolInfo]])</p></li>
+</ul>
+</li>
+<li><p>get_registered_agents()：获取所有已注册的智能体代理 Agent 信息</p>
+<ul>
+<li><p>返回：{代理ID：代理信息}的字典 (Dict[str, AgentInfo])</p></li>
+</ul>
+</li>
+<li><p>get_registered_tools()：获取所有已注册的工具 Tool 信息</p>
+<ul>
+<li><p>返回：{工具ID：工具信息}的字典 (Dict[str, ToolInfo])</p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="agent">
+<h2>Agent<a class="headerlink" href="#agent" title="Link to this heading"></a></h2>
+<p>class Agent</p>
+<ul class="simple">
+<li><p>用途：提供创建、管理和运行Agent的功能接口。Agent 可以接收、发送消息与其它 Agent 进行双向流式通信，可以发送同步请求调用 Tool 执行特定任务。</p></li>
+<li><p>属性说明</p>
+<ul>
+<li><p>address (str)：智能体代理服务的部署地址</p></li>
+<li><p>agent_id (str)：智能体代理的唯一标识符</p></li>
+<li><p>name (str)：智能体代理的名称</p></li>
+<li><p>domain (str)：智能体代理所属的领域或分组</p></li>
+<li><p>description (str)：智能体代理功能的详细描述</p></li>
+<li><p>version (str)：智能体代理版本</p></li>
+<li><p>input_mode (List[Mode])：智能体代理可接受的输入模态列表，包括文本模态TEXT 、图像模态IMAGE、音频模态AUDIO、嵌入模态EMBEDDED</p></li>
+<li><p>output_mode (List[Mode])：智能体代理可提供的输出模态列表，包括文本模态TEXT 、图像模态IMAGE、音频模态AUDIO、嵌入模态EMBEDDED</p></li>
+<li><p>skills (List[AgentSkill])：智能体代理具备的技能列表</p></li>
+<li><p>agent_info (AgentInfo)：包含智能体代理信息的对象，用于向网关注册</p></li>
+</ul>
+</li>
+<li><p>方法说明</p>
+<ul>
+<li><p>_create_agent_info() -&gt; AgentInfo：创建一个 AgentInfo 对象用于向网关注册</p>
+<ul>
+<li><p>返回：一个 AgentInfo 对象</p></li>
+</ul>
+</li>
+<li><p>start() -&gt; Agent：启动智能体代理服务器</p>
+<ul>
+<li><p>返回：self</p></li>
+</ul>
+</li>
+<li><p>stop()：停止智能体代理服务器并关闭所有客户端连接</p></li>
+<li><p>register_to_gateway(gateway_address) -&gt; Agent：向网关注册智能体代理</p>
+<ul>
+<li><p>参数：gateway_address (str)：网关服务的地址</p></li>
+<li><p>返回：self</p></li>
+</ul>
+</li>
+<li><p>update_peers(domain=”default”) -&gt; Agent：查询网关中所有的节点（Agent和Tool）清单，并更新当前 Agent 服务中存储的 peers 节点信息</p>
+<ul>
+<li><p>参数：domain (str)：要查询的领域。可选参数，默认为 “default”</p></li>
+<li><p>返回：self</p></li>
+</ul>
+</li>
+<li><p>get_nodes() -&gt; Dict[str, Union[AgentInfo, Any]]：查询当前 Agent 服务中存储的 peers 节点信息</p>
+<ul>
+<li><p>返回：节点信息字典</p></li>
+</ul>
+</li>
+<li><p>create_task_info(parent_task_ids=None) -&gt; TaskInfo：创建一个新的任务信息对象</p>
+<ul>
+<li><p>参数：parent_task_ids (List[str])：父任务 ID 列表</p></li>
+<li><p>返回：新的TaskInfo 对象</p></li>
+</ul>
+</li>
+<li><p>create_content_items(content, content_mode=None) -&gt; List[ContentItem]：创建消息中的 ContentItem 对象列表</p>
+<ul>
+<li><p>参数：
+content (Union[str, bytes, List[Union[str, bytes]]])：消息内容，可以是列表或单个内容，内容的类型支持string和bytes两类。其中，文本模态使用string类型，图像、音频、嵌入模态使用bytes类型。
+content_mode (Optional[Union[Mode, List[Mode]]])：消息内容的模态或模态列表，与消息列表元素一一对应。</p></li>
+<li><p>返回：ContentItem 对象列表</p></li>
+</ul>
+</li>
+<li><p>create_agent_message(receiver_id, content, session_id=None, task_info=None, content_mode=None, session_status=SessionStatus.START_QUEST, message_id=None, reply_to_message_id=None) -&gt; AgentMessage：创建一个 AgentMessage 对象，用于智能体代理之间的交互</p>
+<ul>
+<li><p>参数：
+receiver_id (str)：接收消息的智能体代理 ID
+content (Union[str, bytes, List[Union[str, bytes]]])：消息的内容
+session_id (str,)：会话 ID
+task_info (TaskInfo, 可选)：任务信息
+content_mode (Optional[Union[Mode, List[Mode]]], 可选)：消息内容的模态，与消息列表元素一一对应。
+session_status (SessionStatus, 可选)：会话状态
+message_id (str, 可选)：当前消息的ID
+reply_to_message_id (str, 可选)：用于标记当前消息是对某消息 ID的回复</p></li>
+<li><p>返回：AgentMessage 对象</p></li>
+</ul>
+</li>
+<li><p>create_agent_client(receiver_id, stub=GatewayServiceStub, stream_calling=”RouteAgentCalling”) -&gt; str：创建一个 AgentClient 对象，用于向其他智能体代理发送消息</p>
+<ul>
+<li><p>参数：
+receiver_id (str)：接收消息的智能体代理 ID
+stub(GatewayServiceStub)：网关存根类
+stream_calling(str)：Agent 消息路由方法</p></li>
+<li><p>返回：创建的 AgentClient 对象的 session_id</p></li>
+</ul>
+</li>
+<li><p>submit_inquiry(session_id, receiver_id, content, content_mode=None, session_status=None,  task_info=None)：通过网关向另一个智能体代理发送请求</p>
+<ul>
+<li><p>参数：
+session_id (str)：会话 ID
+receiver_id (str)：接收请求的智能体代理 ID
+content (Union[str, bytes, List[Union[str, bytes]]])：消息的内容
+content_mode (Optional[Union[Mode, List[Mode]]], 可选)：消息内容的模态，与消息列表元素一一对应。
+session_status (SessionStatus, 可选)：会话状态
+task_info (TaskInfo, 可选)：任务信息</p></li>
+</ul>
+</li>
+<li><p>receive_feedback(session_id, receiver_id) -&gt; AgentMessage：从另一个智能体代理服务端接收响应</p>
+<ul>
+<li><p>参数：
+session_id (str)：会话 ID
+receiver_id (str)：服务端智能体代理 ID</p></li>
+<li><p>返回：AgentMessage 对象</p></li>
+</ul>
+</li>
+<li><p>submit_feedback(session_id, receiver_id, content, content_mode=None, session_status=None,  task_info=None)：向另一个智能体代理客户端发送响应</p>
+<ul>
+<li><p>参数：
+session_id (str)：会话 ID
+receiver_id (str)：接收响应的智能体代理 ID
+content (Union[str, bytes, List[Union[str, bytes]]])：消息的内容
+content_mode (Optional[Union[Mode, List[Mode]]], 可选)：消息内容的模态，与消息列表元素一一对应。
+session_status (SessionStatus, 可选)：会话状态
+task_info (TaskInfo, 可选)：任务信息</p></li>
+</ul>
+</li>
+<li><p>receive_inquiry() -&gt; AgentMessage：从另一个智能体代理客户端接收请求</p>
+<ul>
+<li><p>返回：AgentMessage 对象</p></li>
+</ul>
+</li>
+<li><p>invoke_session_handlers(session_id, handlers) -&gt; List[Any]：从另一个智能体代理服务端接收响应</p>
+<ul>
+<li><p>参数：
+session_id (str)：会话 ID
+handlers (List[Callable])：自定义请求处理函数列表，每个handler接收 AgentMessage 、处理请求并返回处理后的响应信息</p></li>
+<li><p>返回：响应信息的列表</p></li>
+</ul>
+</li>
+<li><p>create_tool_request(receiver_id, session_id=None, tool_name=None, arguments=None) -&gt; ToolRequest：创建一个 ToolRequest 对象，用于发送工具调用请求</p>
+<ul>
+<li><p>参数：
+receiver_id (str)：要调用的工具 ID
+session_id (str, 可选)：会话 ID
+tool_name (str, 可选)：要调用的工具名称
+arguments (Dict[str, Any], 可选)：工具调用的参数</p></li>
+<li><p>返回：ToolRequest 对象</p></li>
+</ul>
+</li>
+<li><p>call_tool(tool_id, session_id=None, tool_name=None, arguments=None) -&gt; ToolResponse：通过网关调用具有给定 ID 的工具</p>
+<ul>
+<li><p>参数：
+tool_id (str)：要调用的工具 ID
+session_id (str, 可选)：会话 ID
+tool_name (str, 可选)：工具名称
+arguments (Dict[str, Any], 可选)：工具调用参数</p></li>
+<li><p>返回：工具的响应ToolResponse对象</p></li>
+</ul>
+</li>
+<li><p>close_agent_client(session_id, receiver_id) -&gt; bool：关闭特定的代理客户端</p>
+<ul>
+<li><p>参数：
+session_id(str)：会话 ID
+receiver_id(str)：接收响应的智能体代理 ID</p></li>
+<li><p>返回：如果客户端被关闭则为 True，否则为 False</p></li>
+</ul>
+</li>
+<li><p>close_tool_client(tool_id) -&gt; bool：关闭特定的工具客户端</p>
+<ul>
+<li><p>参数：tool_id (str)：工具的 ID</p></li>
+<li><p>返回：如果客户端被关闭则为 True，否则为 False</p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="tool">
+<h2>Tool<a class="headerlink" href="#tool" title="Link to this heading"></a></h2>
+<p>class Tool</p>
+<ul class="simple">
+<li><p>用途：提供创建、管理和执行工具的功能接口。Tool 由 Agent 发起调用请求，执行特定任务，并返回响应结果。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>address (str)：工具服务的部署地址</p></li>
+<li><p>tool_id (str)：工具的唯一标识符</p></li>
+<li><p>name (str)：工具的名称</p></li>
+<li><p>domain (str)：工具所属的领域或分组</p></li>
+<li><p>description (str)：工具功能的详细描述</p></li>
+<li><p>version (str)：工具版本</p></li>
+<li><p>input_mode (List[Mode])：工具可接受的输入模态列表，包括文本模态TEXT 、图像模态IMAGE、音频模态AUDIO、嵌入模态EMBEDDED</p></li>
+<li><p>output_mode (List[Mode])：工具可提供的输出模态列表，包括文本模态TEXT 、图像模态IMAGE、音频模态AUDIO、嵌入模态EMBEDDED</p></li>
+<li><p>arguments (Dict[str, str])：工具的参数名称及其赋值的字典</p></li>
+<li><p>tool_info (ToolInfo)：包含工具信息的对象，用于向网关注册</p></li>
+</ul>
+</li>
+<li><p>方法说明</p>
+<ul>
+<li><p>update_tool_info：向网关更新最新的ToolInfo</p>
+<ul>
+<li><p>参数：
+name (str)：工具的名称
+description (str)：工具功能的详细描述
+domain (str)：工具所属的领域或分组
+version (str)：工具版本
+input_mode (List[Mode])：工具可接受的输入模态列表，包括文本模态TEXT 、图像模态IMAGE、音频模态AUDIO、嵌入模态EMBEDDED
+output_mode (List[Mode])：工具可提供的输出模态列表，包括文本模态TEXT 、图像模态IMAGE、音频模态AUDIO、嵌入模态EMBEDDED
+arguments (Dict[str, str])：工具的参数名称及其赋值的字典</p></li>
+<li><p>返回：self</p></li>
+</ul>
+</li>
+<li><p>set_process_request_handler(handler)：设置处理传入工具请求的函数</p>
+<ul>
+<li><p>参数：handler (Callable)：自定义请求处理函数，接收 ToolRequest 、执行工具并返回 ToolResponse</p></li>
+<li><p>返回：self</p></li>
+</ul>
+</li>
+<li><p>start()：启动工具服务器</p>
+<ul>
+<li><p>返回：self</p></li>
+</ul>
+</li>
+<li><p>stop()：停止工具服务器</p></li>
+<li><p>register_to_gateway(gateway_address)：向网关注册工具</p>
+<ul>
+<li><p>参数：gateway_address (str)：网关服务的地址</p></li>
+<li><p>返回：self</p></li>
+</ul>
+</li>
+<li><p>creat_function_tool(function, address, …)：&#64;classmethod 类方法，用于创建基于外部自定义的Python函数工具的服务</p>
+<ul>
+<li><p>参数：
+function (Callable)：要封装为Tool的外部Python函数工具
+address (str)：工具服务的地址
+其他参数与 Tool 类初始化参数相同</p></li>
+<li><p>返回：初始化的 Tool 实例</p></li>
+</ul>
+</li>
+<li><p>creat_api_tool(address, api_url, api_method, api_headers, api_timeout, …)：&#64;classmethod 类方法，用于创建基于外部自定义的 API 工具的服务</p>
+<ul>
+<li><p>参数：
+address (str)：工具服务的地址
+api_url (str)：API 的 URL 路径
+api_method(str)：API 请求的 HTTP 方法，如 GET、POST、PUT、DELETE
+api_headers(Dict[str, str])：API 请求的头部信息，包含请求头中的各种信息，如认证令牌等
+api_timeout(int)：API 请求的超时时间，以秒为单位
+其他参数与 Tool 类初始化参数相同</p></li>
+<li><p>返回：初始化的 Tool 实例</p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="memory">
+<h2>Memory<a class="headerlink" href="#memory" title="Link to this heading"></a></h2>
+<p>class ContextMemory</p>
+<ul class="simple">
+<li><p>用途：提供Agent历史消息的存储，访问，管理。目前基于TinyDB，数据存储方式为Json。</p></li>
+<li><p>属性说明</p>
+<ul>
+<li><p>agent_id (str)：智能体代理的唯一标识符</p></li>
+<li><p>save_dir (str)：存储路径</p></li>
+<li><p>dbs (Dict)：TinyDB数据库字典</p></li>
+</ul>
+</li>
+<li><p>方法说明</p>
+<ul>
+<li><p>init(self, agent_id, save_root=”./.cache”):：初始化一个ContextMemory实例</p></li>
+<li><p>create(task_id) -&gt; bool：检查指定路径的数据库文件是否已存在，不存在则创建一个新的 TinyDB 数据库实例。</p>
+<ul>
+<li><p>参数：
+task_id(str)：任务的唯一标识（如 “task_001”），用于创建对应的任务数据库</p></li>
+<li><p>返回：成功创建数据库则为 True，数据库已存在或创建失败则为 False</p></li>
+</ul>
+</li>
+<li><p>write(task_id, message) -&gt; bool：将消息转换为字典格式并插入到对应任务的数据库中</p>
+<ul>
+<li><p>参数：
+task_id(str)：任务的唯一标识（如 “task_001”），用于定位对应的数据库
+message(Union[AgentMessage, ToolRequest, ToolResponse])：需要写入的消息</p></li>
+<li><p>返回：成功写入消息 True，任务数据库不存在或写入失败则为 False</p></li>
+</ul>
+</li>
+<li><p>clear(task_id) -&gt; bool：清空对应任务的数据库中的所有记录</p>
+<ul>
+<li><p>参数：task_id(str)：任务的唯一标识（如 “task_001”），用于定位对应的数据库</p></li>
+<li><p>返回：成功清空数据库则为 True，任务数据库不存在或清空失败则为 False</p></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="protocol-data">
+<h2>Protocol Data<a class="headerlink" href="#protocol-data" title="Link to this heading"></a></h2>
+<p>Mode (Enum)</p>
+<ul class="simple">
+<li><p>用途：定义传输或处理的数据的类型。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>TEXT (0)：文本类型数据。</p></li>
+<li><p>IMAGE (1)：图片类型数据（二进制格式）。</p></li>
+<li><p>AUDIO (2)：音频类型数据（二进制格式）。</p></li>
+<li><p>EMBEDDED (3)：自定义二进制数据（如序列化对象）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+mode = Mode.TEXT  # 指定当前内容为文本类型</p></li>
+</ul>
+<hr class="docutils" />
+<p>SessionStatus (Enum)</p>
+<ul class="simple">
+<li><p>用途：表示会话的状态。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>START_QUEST (0)：会话开始，发送第一个请求（客户端）。</p></li>
+<li><p>HOLD_QUEST (1)：在会话开始后，发起请求（客户端）。</p></li>
+<li><p>HOLD_RESPONSE (2)：在会话开始后，回复的响应（服务端）。</p></li>
+<li><p>STOP_QUEST (3)：在会话开始后，发起任务终止的请求（客户端）。</p></li>
+<li><p>STOP_RESPONSE (4)：遇到超时或错误，会话异常终止；或者接到客户端主动发送的终止请求（服务端）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+status = SessionStatus.START_QUEST  # 标记会话为“任务开始”状态</p></li>
+</ul>
+<hr class="docutils" />
+<p>TaskStatus (Enum)</p>
+<ul class="simple">
+<li><p>用途：表示任务的执行状态。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>CREATE (0)：任务已创建但未执行。</p></li>
+<li><p>EXECUTING (1)：任务正在执行中。</p></li>
+<li><p>WAITING (2)：任务等待依赖项完成。</p></li>
+<li><p>BREAK (3)：任务被中断。</p></li>
+<li><p>FINISH (4)：任务已完成。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+task_status = TaskStatus.EXECUTING  # 标记任务为“执行中”</p></li>
+</ul>
+<hr class="docutils" />
+<p>AgentSkill</p>
+<ul class="simple">
+<li><p>用途：描述Agent的技能信息。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>skill_id (str)：技能的唯一标识（如 “translation”）。</p></li>
+<li><p>capability (str)：技能的功能描述（如 “多语言翻译”）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+skill = AgentSkill(skill_id=”translation”, capability=”多语言翻译”)</p></li>
+</ul>
+<hr class="docutils" />
+<p>TaskInfo</p>
+<ul class="simple">
+<li><p>用途：存储任务的基本信息。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>task_id (str)：任务的唯一标识（如 “task_001”）。</p></li>
+<li><p>parent_task_ids (List[str])：父任务ID列表（用于任务依赖，如 [“task_000”]）。</p></li>
+<li><p>task_status (TaskStatus)：任务状态（基于 TaskStatus 枚举）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+task = TaskInfo(task_id=”task_001”, task_status=TaskStatus.CREATE)</p></li>
+</ul>
+<hr class="docutils" />
+<p>ContentItem</p>
+<ul class="simple">
+<li><p>用途：封装消息内容，支持多种数据类型。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>_text (Optional[str])：文本内容（如 “Hello”）。</p></li>
+<li><p>_image (Optional[bytes])：图片二进制数据（如 b”\x89PNG…”）。</p></li>
+<li><p>_audio (Optional[bytes])：音频二进制数据（如 b”WAV…”）。</p></li>
+<li><p>_embedded (Optional[bytes])：自定义二进制数据（如序列化对象）。</p></li>
+</ul>
+</li>
+<li><p>方法说明：</p>
+<ul>
+<li><p>write_text(str)：创建文本内容项。</p></li>
+<li><p>write_image(bytes)：创建图片内容项。</p></li>
+<li><p>write_audio(bytes)：创建音频内容项。</p></li>
+<li><p>write_embedded(bytes)：创建自定义二进制内容项。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+text_item = ContentItem.write_text(“Hello, World!”)
+image_item = ContentItem.write_image(b”image_data”)</p></li>
+</ul>
+<hr class="docutils" />
+<p>Peer</p>
+<ul class="simple">
+<li><p>用途：表示通信的对等节点（Agent或工具）。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>_agent_info (Optional[AgentInfo])：Agent的详细信息（如ID、地址等）。</p></li>
+<li><p>_tool_info (Optional[ToolInfo])：工具的详细信息（如参数、模式等）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+peer = Peer()
+peer.agent_info = AgentInfo(agent_id=”agent_001”)</p></li>
+</ul>
+<hr class="docutils" />
+<p>AgentInfo</p>
+<ul class="simple">
+<li><p>用途：描述Agent的详细信息。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>agent_id (str)：Agent的唯一标识（如 “agent_001”）。</p></li>
+<li><p>address (str)：Agent的网络地址（如 “http://localhost:8080”）。</p></li>
+<li><p>name (str)：Agent的名称（如 “翻译智能体”）。</p></li>
+<li><p>domain (str)：Agent所属的领域（如 “translation”）。</p></li>
+<li><p>input_mode (List[Mode])：Agent支持的输入模式列表（如 [Mode.TEXT]）。</p></li>
+<li><p>output_mode (List[Mode])：Agent支持的输出模式列表（如 [Mode.TEXT]）。</p></li>
+<li><p>description (str)：Agent的功能描述（如 “支持中英文翻译”）。</p></li>
+<li><p>skills (List[AgentSkill])：Agent的技能列表（如 [AgentSkill(…)]）。</p></li>
+<li><p>version (str)：Agent的版本号（如 “v1.0.0”）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+agent = AgentInfo(agent_id=”agent_001”, input_mode=[Mode.TEXT])</p></li>
+</ul>
+<hr class="docutils" />
+<p>RegisterAgentResponse</p>
+<ul class="simple">
+<li><p>用途：Agent注册后的响应结果。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>success (bool)：注册是否成功（True/False）。</p></li>
+<li><p>peers (List[Peer])：已知的节点列表（如 [Peer(…), Peer(…)]）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+response = RegisterAgentResponse(success=True, peers=[peer1, peer2])</p></li>
+</ul>
+<hr class="docutils" />
+<p>ToolInfo</p>
+<ul class="simple">
+<li><p>用途：描述工具的详细信息。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>tool_id (str)：工具的唯一标识（如 “tool_001”）。</p></li>
+<li><p>address (str)：工具的网络地址（如 “http://localhost:8081”）。</p></li>
+<li><p>name (str)：工具的名称（如 “OCR工具”）。</p></li>
+<li><p>domain (str)：工具所属的领域（如 “image_processing”）。</p></li>
+<li><p>input_mode (List[Mode])：工具支持的输入模式列表（如 [Mode.IMAGE]）。</p></li>
+<li><p>output_mode (List[Mode])：工具支持的输出模式列表（如 [Mode.TEXT]）。</p></li>
+<li><p>description (str)：工具的功能描述（如 “图片转文字”）。</p></li>
+<li><p>arguments (Dict[str, str])：工具调用所需的参数（如 {“lang”: “en”}）。</p></li>
+<li><p>version (str)：工具的版本号（如 “v2.1.0”）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+tool = ToolInfo(tool_id=”tool_001”, arguments={“lang”: “en”})</p></li>
+</ul>
+<hr class="docutils" />
+<p>RegisterToolResponse</p>
+<ul class="simple">
+<li><p>用途：工具注册后的响应结果。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>success (bool)：注册是否成功（True/False）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+response = RegisterToolResponse(success=True)</p></li>
+</ul>
+<hr class="docutils" />
+<p>DeregisterNodeRequest</p>
+<ul class="simple">
+<li><p>用途：请求网关注销节点。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>node_id (str)：发送请求的节点（Agent或工具）的ID（如 “agent_001”/”tool_001”）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+request = DeregisterNodeRequest(node_id=”agent_001”)</p></li>
+</ul>
+<hr class="docutils" />
+<p>DeregisterNodeResponse</p>
+<ul class="simple">
+<li><p>用途：节点注销后的响应结果。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>success (bool)：注销是否成功（True/False）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+response = DeregisterNodeResponse(success=True)</p></li>
+</ul>
+<hr class="docutils" />
+<p>GetNodesRequest</p>
+<ul class="simple">
+<li><p>用途：请求获取指定域内的节点信息。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>agent_id (str)：发送请求的Agent ID（如 “agent_001”）。</p></li>
+<li><p>domain (str)：目标域名称（如 “translation”）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+request = GetNodesRequest(agent_id=”agent_001”, domain=”translation”)</p></li>
+</ul>
+<hr class="docutils" />
+<p>GetNodesResponse</p>
+<ul class="simple">
+<li><p>用途：返回指定域内的节点列表。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>peers (List[Peer])：节点列表（如 [Peer(…), Peer(…)]）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+response = GetNodesResponse(peers=[peer1, peer2])</p></li>
+</ul>
+<hr class="docutils" />
+<p>AgentMessage</p>
+<ul class="simple">
+<li><p>用途：Agent间通信的消息体。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>sender_id (str)：发送方ID（如 “agent_001”）。</p></li>
+<li><p>receiver_id (str)：接收方ID（如 “agent_002”）。</p></li>
+<li><p>session_id (str)：会话的唯一标识（如 “session_123”）。</p></li>
+<li><p>session_status (SessionStatus)：会话状态（基于 SessionStatus 枚举）。</p></li>
+<li><p>task_info (TaskInfo)：关联的任务信息（如 TaskInfo(…)）。</p></li>
+<li><p>message_id (str)：消息的唯一标识（如 “msg_001”）。</p></li>
+<li><p>reply_to_message_id (str)：回复的目标消息ID（如 “msg_000”）。</p></li>
+<li><p>content (List[ContentItem])：消息内容列表（如 [ContentItem(…)]）。</p></li>
+</ul>
+</li>
+<li><p>方法说明：</p>
+<ul>
+<li><p>add_content(item: ContentItem)：向消息中添加内容项。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+msg = AgentMessage(sender_id=”agent_001”, receiver_id=”agent_002”)
+msg.add_content(ContentItem.write_text(“Hello!”))</p></li>
+</ul>
+<hr class="docutils" />
+<p>ToolRequest</p>
+<ul class="simple">
+<li><p>用途：向工具发送的请求。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>sender_id (str)：发送方ID（如 “agent_001”）。</p></li>
+<li><p>receiver_id (str)：接收方ID（如 “tool_001”）。</p></li>
+<li><p>session_id (str)：会话的唯一标识（如 “session_123”）。</p></li>
+<li><p>tool_name (str)：目标工具名称（如 “translator”）。</p></li>
+<li><p>arguments (Dict[str, str])：调用参数（如 {“text”: “Hello”}）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+request = ToolRequest(tool_name=”translator”, arguments={“text”: “Hello”})</p></li>
+</ul>
+<hr class="docutils" />
+<p>ToolResponse</p>
+<ul class="simple">
+<li><p>用途：工具执行后的响应。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>sender_id (str)：发送方ID（如 “tool_001”）。</p></li>
+<li><p>receiver_id (str)：接收方ID（如 “agent_001”）。</p></li>
+<li><p>session_id (str)：会话的唯一标识（如 “session_123”）。</p></li>
+<li><p>is_error (bool)：是否发生错误（True/False）。</p></li>
+<li><p>error_message (str)：错误描述（如 “Invalid input”）。</p></li>
+<li><p>content (List[ContentItem])：响应内容列表（如 [ContentItem(…)]）。</p></li>
+</ul>
+</li>
+<li><p>方法说明：</p>
+<ul>
+<li><p>add_content(item: ContentItem)：向响应中添加内容项。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+response = ToolResponse(is_error=False, content=[text_item])</p></li>
+</ul>
+<hr class="docutils" />
+<p>HeartbeatRequest</p>
+<ul class="simple">
+<li><p>用途：向网关定时发送的心跳检测请求。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>sender_id (str)：发送请求的节点（Agent或工具）的ID（如 “agent_001”/”tool_001”）。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+request = HeartbeatRequest(sender_id=”agent_001”)</p></li>
+</ul>
+<hr class="docutils" />
+<p>HeartbeatResponse</p>
+<ul class="simple">
+<li><p>用途：向工具发送的请求。</p></li>
+<li><p>属性说明：</p>
+<ul>
+<li><p>success(bool)：心跳检测请求是否成功响应（True/False）。</p></li>
+<li><p>message(str)：响应信息。</p></li>
+</ul>
+</li>
+<li><p>示例：<br />
+response = HeartbeatResponse(success=True, message=”Heartbeat received”)</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="AIP.IO-v0.0.1-EN.html" class="btn btn-neutral float-left" title="Introduction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
